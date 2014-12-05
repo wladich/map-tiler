@@ -1,0 +1,6 @@
+storage-format=mbtiles
+max-level=13
+image-format=JPEG,quality=85
+image-border-format=PNG8,colors=256,speed=8
+out=arbalet.mbtiles
+@maps.lst

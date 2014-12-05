@@ -1,0 +1,208 @@
+# -*- coding: utf-8 -*-
+import os
+import multiprocessing
+from array import array
+import png
+import imagequant
+from cStringIO import StringIO
+import  pysqlite2.dbapi2 as sqlite
+from functools import partial
+import Image
+
+def open_image(s):
+    if s.startswith('\x89PNG'):
+        r = png.Reader(bytes=s)
+        w, h, pixels, meta = r.asRGBA()
+        ar = array('B')
+        for row in list(pixels):
+            ar.extend(row)
+        data = ar.tostring()
+        im = Image.fromstring('RGBA', (w, h), data)
+        return im
+    else:
+        return Image.open(StringIO(s))
+
+class MBTilesWriter(object):
+    SCHEME = '''
+        CREATE TABLE tiles(
+            zoom_level integer, tile_column integer, tile_row integer, tile_data blob,
+            UNIQUE(zoom_level, tile_column, tile_row) ON CONFLICT REPLACE);
+       
+        CREATE TABLE metadata (name text, value text, UNIQUE(name) ON CONFLICT REPLACE);
+    '''
+    
+    PRAGMAS = '''
+        PRAGMA journal_mode = WAL;
+        PRAGMA synchronous = 0;
+    '''
+    def __init__(self, path, image_encoder):
+        need_init = not os.path.exists(path)
+        self.encoder = image_encoder
+        self.path = path
+        if need_init:
+            self.conn.executescript(self.SCHEME)
+
+    @property    
+    def conn(self):
+        conn = sqlite.connect(self.path)
+        conn.executescript(self.PRAGMAS)
+        return conn
+    
+    def write(self, im, tile_x, tile_y, level):
+        encoder = self.encoder(im)
+        image_not_empty = encoder.next()
+        if image_not_empty:
+            tile_y = 2 ** level - tile_y - 1
+            s = StringIO()
+            encoder.send(s)
+            s = buffer(s.getvalue())
+            conn = self.conn
+            conn.execute('''
+                INSERT INTO tiles (zoom_level, tile_column, tile_row, tile_data) VALUES (?,?,?,?)''', 
+                (level, tile_x, tile_y, s))
+            conn.commit()
+            conn.close()
+        else:
+            self.remove(tile_x, tile_y, level)
+
+    def remove(self, tile_x, tile_y, level):
+        conn = self.conn
+        tile_y = 2 ** level - tile_y - 1
+        conn.execute('DELETE FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=?', 
+                          (level, tile_x, tile_y))
+        conn.commit()
+        conn.close()
+        
+    def open(self, tile_x, tile_y, level):    
+        tile_y = 2 ** level - tile_y - 1
+        conn = self.conn
+        row = self.conn.execute('SELECT tile_data FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=?', (level, tile_x, tile_y)).fetchone()
+        if row:
+            return open_image(str(row[0]))
+        conn.close()
+            
+    def write_metadata(self, key, value):
+        conn = self.conn
+        conn.execute('INSERT INTO metadata (name, value) VALUES (?, ?)', (key, value))
+        conn.commit()
+        conn.close()
+    
+    def read_metadata(self, key):
+        conn = self.conn
+        row = conn.execute('SELECT value FROM metadata WHERE name=?', (key,)).fetchone()
+        if row:
+            return row[0]
+        conn.close()
+
+    def close(self):
+#        self.conn.commit()
+        conn = self.conn
+        conn.execute('PRAGMA journal_mode = off')
+#        self.conn.close()
+        
+    def __del__(self):
+        self.close()
+        
+class FilesWriter(object):
+    def __init__(self, path, image_encoder):
+        if not os.path.isdir(path):
+            os.makedirs(path)
+        self.path = path
+        self.encoder = image_encoder
+        
+    def _get_tile_file_name(self, tile_x, tile_y, level):
+        filename = '%s_%s_%s' % (level, tile_y, tile_x)
+        filename = os.path.join(self.path, filename)
+        return filename
+    
+    def write(self, im, tile_x, tile_y, level):
+        encoder = self.encoder(im)
+        image_not_empty = encoder.next()
+        if image_not_empty:
+            filename = self._get_tile_file_name(tile_x, tile_y, level)
+            with open(filename, 'w') as f:
+                encoder.send(f)  
+        else:
+            self.remove(tile_x, tile_y, level)
+
+    def remove(self, tile_x, tile_y, level):
+        filename = self._get_tile_file_name(tile_x, tile_y, level)
+        if os.path.exists(filename):
+            os.remove(filename)
+
+    def open(self, tile_x, tile_y, level):
+        filename = self._get_tile_file_name(tile_x, tile_y, level)
+        if os.path.exists(filename):
+            with open(filename) as f:
+                return open_image(f.read())
+    
+    def _get_metadata_file_name(self, key):
+        filename = '_meta_%s' % key
+        filename = os.path.join(self.path, filename)
+        return filename
+        
+    def write_metadata(self, key, value):
+        with open(self._get_metadata_file_name(key), 'w') as f:
+            f.write(value)
+
+    def read_metadata(self, key):
+        filename = self._get_metadata_file_name(key)
+        if os.path.exists(filename):
+            with open(filename) as f:
+                return f.read()
+        
+    def close(self):
+        pass
+    
+def save_png_rgba(im, fd, compression=None):
+    has_alpha = im.mode[-1] == 'A'
+    ar = array('B', im.tostring())
+    pngw = png.Writer(size=im.size, alpha=has_alpha, compression=compression)
+    pngw.write_array(fd, ar)
+
+def save_png_with_palette(im, fd, colors, speed, compression=None):
+    quantized = imagequant.quantize_image(im, colors=colors, speed=speed)
+    palette = list(quantized['palette'])
+    palette = zip(palette[::4], palette[1::4], palette[2::4], palette[3::4])
+    if all(c[3]==255 for c in palette):
+        palette = [c[:3] for c in palette]
+    pngw = png.Writer(size=im.size, palette=palette, compression=compression)
+    pngw.write_array(fd, quantized['image'])
+    
+def save_jpeg(im, fd, quality):
+    im.save(fd, 'JPEG', quality=quality)
+    
+def get_image_type(im):
+    if im.mode[-1] == 'A':
+        alpha_min, alpha_max = im.split()[-1].getextrema()
+        if alpha_min == 255:
+            return 'full'
+        if alpha_max == 0:
+            return 'empty'
+        return 'border'
+    else:
+        'full'
+
+def get_image_encoder(image_format, image_border_format):
+    encoder_functions = {
+        'PNG8': save_png_with_palette,
+        'PNG32': save_png_rgba,
+        'JPEG': save_jpeg}
+    image_encoder = partial(encoder_functions[image_format[0]], **image_format[1])
+    if image_border_format is None:
+        image_border_encoder = image_encoder
+    else:
+        image_border_encoder = partial(encoder_functions[image_border_format[0]], **image_border_format[1])
+    def _image_encoder(im):
+        image_type = get_image_type(im)
+        fd = yield image_type != 'empty'
+        if image_type == 'full':
+            image_encoder(im, fd)
+        elif image_type == 'border':
+            image_border_encoder(im, fd)
+        else:
+            pass
+        yield
+    return _image_encoder
+
+    
