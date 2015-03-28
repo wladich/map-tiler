@@ -59,6 +59,15 @@ class Maprecord(object):
             self._image_path = os.path.abspath(os.path.join(base_dir, self.data['image_path']))
         return self._image_path
 
+    @property
+    def mask_path(self):
+        mask_path = self.data.get('mask_path')
+        if mask_path:
+            base_dir = os.path.dirname(self._filename)
+            mask_path = os.path.abspath(os.path.join(base_dir, mask_path))
+        return mask_path or None
+
+
     @property    
     def gcps(self):
         if self._gcps is None:

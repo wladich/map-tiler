@@ -163,7 +163,16 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference):
         x, y = pyproj.transform(proj_gmerc, maprecord.proj, x, y)
         x, y = maprecord.inv_gcp_transformer.get_point(x, y)
         return x, y
-    im_src = Image.open(maprecord.image_path).convert('RGB')
+    im_src = Image.open(maprecord.image_path)
+    src_has_alpha = im_src.mode.endswith('A')
+    if src_has_alpha:
+        im_src = im_src.convert('RGBA')
+    else:
+        im_src = im_src.convert('RGB')
+    if maprecord.mask_path is not None:
+        im_mask = Image.open(maprecord.mask_path)
+        im_src.putalpha(im_mask)
+        src_has_alpha = True
     cell_size = 64
     mesh = []
     for cell_x in xrange(tile_size / cell_size):
@@ -183,7 +192,8 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference):
     cutline = [((x - tile_origin[0])/ dest_pixel_size, (tile_origin[1] - y) / dest_pixel_size) for x, y in cutline]
     draw = ImageDraw.Draw(mask)
     draw.polygon(cutline, fill=255, outline=255)
-    im.putalpha(mask)
+    if not src_has_alpha:
+        im.putalpha(mask)
     im.paste(0, (0, 0), ImageChops.invert(mask))
     return im
 
