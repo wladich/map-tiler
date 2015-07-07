@@ -9,9 +9,7 @@ from ozi_map import ozi_to_maprec
 import pyproj
 import collections
 import image_store
-import Image
-import ImageDraw
-import ImageChops
+from PIL import Image, ImageDraw, ImageChops, ImageFile
 import warnings
 from itertools import chain
 
