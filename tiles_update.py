@@ -13,6 +13,7 @@ from PIL import Image, ImageDraw, ImageChops, ImageFile
 import warnings
 from itertools import chain
 
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 warnings.simplefilter('ignore', Image.DecompressionBombWarning)
 
 DEBUG = False
