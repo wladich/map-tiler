@@ -330,8 +330,9 @@ def parse_image_format(s):
 
 class MyArgumentParser(argparse.ArgumentParser):
     def convert_arg_line_to_args(self, arg_line):
-        arg_line = arg_line.split('#', 1)[0]
         arg_line = arg_line.strip()
+        if arg_line and arg_line[0] == '#':
+            return []
         if '=' in arg_line and not arg_line.startswith('-'):
             arg_line = '--' + arg_line
         if arg_line:
