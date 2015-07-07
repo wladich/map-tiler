@@ -3,9 +3,9 @@
 import sys
 import argparse
 import time
-from lib import map_record
-from lib.mpimap import mpstarimap
-import ozi_to_maprec
+from maprec import Maprecord
+from mpimap import mpstarimap
+from ozi_map import ozi_to_maprec
 import pyproj
 import collections
 import image_store
