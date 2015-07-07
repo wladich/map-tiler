@@ -260,7 +260,7 @@ def remove_tiles(metatiles):
 
 def make_tiles_from_metalevel_to_maxlevel(tiles):
     n = 0
-    for _ in mpstarimap(process_metatile, tiles, __nomp=DEBUG):
+    for _ in mpstarimap(process_metatile, tiles, _nomp=DEBUG):
         n += 1
         print ('\r%.1f%%' % (n * 100. / len(tiles))),
         sys.stdout.flush()
@@ -291,7 +291,7 @@ def build_overviews(altered_tiles):
         if z > 0:
             need_update.add((x / 2, y / 2, z - 1))
     n = 0
-    for _ in mpstarimap(build_overview, need_update, __nomp=DEBUG):
+    for _ in mpstarimap(build_overview, need_update, _nomp=DEBUG):
         n += 1
         print '\r%.1f%%' % (n * 100. / len(need_update)),
         sys.stdout.flush()
