@@ -3,7 +3,7 @@
 import sys
 import argparse
 import time
-from maprec import Maprecord
+from maprec import Maprecord, densify_linestring
 from mpimap import mpstarimap
 from ozi_map import ozi_to_maprec
 import pyproj
@@ -71,6 +71,7 @@ def reproject_cutline_gmerc(src_proj, points):
             dest_proj = proj_gmerc_180
         else:
             dest_proj = proj_gmerc
+        points = densify_linestring(points)
         return zip(*pyproj.transform(src_proj, dest_proj, *zip(*points)))
     return []
 
