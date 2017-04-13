@@ -9,6 +9,8 @@ import  pysqlite2.dbapi2 as sqlite
 from functools import partial
 import Image
 
+db_lock = multiprocessing.Lock()
+
 def open_image(s):
     if s.startswith('\x89PNG'):
         r = png.Reader(bytes=s)
@@ -34,6 +36,7 @@ class MBTilesWriter(object):
     PRAGMAS = '''
         PRAGMA journal_mode = WAL;
         PRAGMA synchronous = 0;
+        PRAGMA busy_timeout = 10000;
     '''
     def __init__(self, path, image_encoder):
         need_init = not os.path.exists(path)
@@ -56,12 +59,13 @@ class MBTilesWriter(object):
             s = StringIO()
             encoder.send(s)
             s = buffer(s.getvalue())
-            conn = self.conn
-            conn.execute('''
-                INSERT INTO tiles (zoom_level, tile_column, tile_row, tile_data) VALUES (?,?,?,?)''', 
-                (level, tile_x, tile_y, s))
-            conn.commit()
-            conn.close()
+            with db_lock:
+                conn = self.conn
+                conn.execute('''
+                    INSERT INTO tiles (zoom_level, tile_column, tile_row, tile_data) VALUES (?,?,?,?)''', 
+                    (level, tile_x, tile_y, s))
+                conn.commit()
+                conn.close()
         else:
             self.remove(tile_x, tile_y, level)
 
