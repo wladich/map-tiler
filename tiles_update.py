@@ -4,7 +4,7 @@ import sys
 import argparse
 import time
 from maprec import Maprecord, densify_linestring
-from mpimap import mpstarimap
+from multiprocessing import Pool, cpu_count
 from ozi_map import ozi_to_maprec
 import pyproj
 import collections
@@ -225,7 +225,7 @@ def slice_metatile(im, metatile_x, metatile_y, dest_level):
             tile_store.write(im2, (tile_x0 + d_tile_x) % max_tile, tile_y0 + d_tile_y, dest_level)
 
 
-def process_metatile((tile_x, tile_y, metatile_level), map_references):
+def process_metatile(((tile_x, tile_y, metatile_level), map_references)):
     # 1. render
     # 2. cut tiles
     # 3. shrink and cut overviews
@@ -269,14 +269,15 @@ def remove_tiles(metatiles):
 
 def make_tiles_from_metalevel_to_maxlevel(tiles):
     n = 0
-    for _ in mpstarimap(process_metatile, tiles, _nomp=DEBUG):
+    pool = Pool(cpu_count() + 1)
+    for _ in pool.imap_unordered(process_metatile, tiles):
         n += 1
         print ('\r%.1f%%' % (n * 100. / len(tiles))),
         sys.stdout.flush()
     print
 
 
-def build_overview(x, y, z):
+def build_overview((x, y, z)):
     im = Image.new('RGBA', (512, 512))
     im2 = tile_store.open(x * 2, y * 2, z + 1)
     if im2 is not None:
@@ -299,8 +300,9 @@ def build_overviews(altered_tiles):
     for x, y, z in altered_tiles:
         if z > 0:
             need_update.add((x / 2, y / 2, z - 1))
+    pool = Pool(cpu_count() + 1)
     n = 0
-    for _ in mpstarimap(build_overview, need_update, _nomp=DEBUG):
+    for _ in pool.imap_unordered(build_overview, need_update):
         n += 1
         print '\r%.1f%%' % (n * 100. / len(need_update)),
         sys.stdout.flush()
