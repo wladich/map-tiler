@@ -177,10 +177,7 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference):
         return x, y
     im_src = Image.open(maprecord.image_path)
     src_has_alpha = im_src.mode.endswith('A')
-    if src_has_alpha:
-        im_src = im_src.convert('RGBA')
-    else:
-        im_src = im_src.convert('RGB')
+    im_src = im_src.convert('RGBA')
     if maprecord.mask_path is not None:
         im_mask = Image.open(maprecord.mask_path)
         im_src.putalpha(im_mask)
@@ -198,12 +195,14 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference):
             quad = sum(quad, tuple())
             mesh.append(((x1, y1, x2, y2), quad))
     im = im_src.transform((tile_size, tile_size), Image.MESH, mesh, Image.BICUBIC)
-    mask = Image.new('L', (tile_size, tile_size))
+    cutline_mask = Image.new('L', (tile_size, tile_size))
     cutline = maprecord.projected_cutline
     cutline = reproject_cutline_gmerc(maprecord.proj, cutline)
     cutline = [((x - tile_origin[0]) / dest_pixel_size, (tile_origin[1] - y) / dest_pixel_size) for x, y in cutline]
-    draw = ImageDraw.Draw(mask)
+    draw = ImageDraw.Draw(cutline_mask)
     draw.polygon(cutline, fill=255, outline=255)
+    mask = Image.new('L', (tile_size, tile_size))
+    mask.paste(cutline_mask, (0, 0), im)
     if not src_has_alpha:
         im.putalpha(mask)
     im.paste(0, (0, 0), ImageChops.invert(mask))
