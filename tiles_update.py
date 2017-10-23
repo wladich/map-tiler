@@ -63,16 +63,25 @@ def open_map_reference(filename):
     return maprecord
 
 
+def calc_area(points):
+    if not points:
+        return 0
+    area = 0
+    points = points + [points[0]]
+    p1 = points[1]
+    for p2 in points[1:]:
+        x1, y1 = p1
+        x2, y2 = p2
+        area += (x2 - x1) * (y1 + y2) / 2
+        p1 = p2
+    return abs(area)
+
 def reproject_cutline_gmerc(src_proj, points):
     if points:
-        test_point = points[0]
-        test_point = pyproj.transform(src_proj, proj_gmerc, *test_point)
-        if abs(test_point[0]) > max_gmerc_coord / 2:
-            dest_proj = proj_gmerc_180
-        else:
-            dest_proj = proj_gmerc
         points = densify_linestring(points)
-        return zip(*pyproj.transform(src_proj, dest_proj, *zip(*points)))
+        points1 = zip(*pyproj.transform(src_proj, proj_gmerc, *zip(*points)))
+        points2 = zip(*pyproj.transform(src_proj, proj_gmerc_180, *zip(*points)))
+        return points1 if calc_area(points1) <= calc_area(points2) else points2
     return []
 
 
