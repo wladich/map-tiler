@@ -9,7 +9,7 @@ from ozi_map import ozi_to_maprec
 import pyproj
 import collections
 import image_store
-from PIL import Image, ImageDraw, ImageChops, ImageFile
+from PIL import Image, ImageDraw, ImageChops, ImageFile, ImageFilter
 from itertools import chain
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -23,6 +23,8 @@ proj_gmerc_180 = pyproj.Proj(
     '+units=m +nadgrids=@null +wktext  +no_defs')
 max_gmerc_coord = 20037508.342789244
 METATILE_DELTA = 3
+
+highlight_color = 0xdb, 0x5a, 0x00
 
 config = None
 tile_store = None
@@ -291,6 +293,11 @@ def build_overview((x, y, z)):
     if im2 is not None:
         im.paste(im2.convert('RGBA'), (256, 256))
     im = im.resize((256, 256), Image.ANTIALIAS)
+    # FIXME: добавить закрашивание для уровней, которые делаются из metatile
+    if config.highlight_level is not None and z <= config.highlight_level:
+        mask = im.split()[-1]
+        mask = mask.filter(ImageFilter.MaxFilter(5))
+        im.paste(highlight_color, (0, 0), mask)
     tile_store.write(im, x, y, z)
 
 
@@ -358,6 +365,7 @@ def parse_command_line():
     parser = MyArgumentParser(fromfile_prefix_chars='@')
     parser.add_argument('--storage-format', choices=['files', 'mbtiles'], required=True)
     parser.add_argument('--max-level', type=int, required=True)
+    parser.add_argument('--highlight-level', type=int)
     parser.add_argument('maps', metavar='FILE', type=filename_arg_type, nargs='+')
     parser.add_argument('--image-format', type=parse_image_format, required=True)
     parser.add_argument('--image-border-format', type=parse_image_format)
