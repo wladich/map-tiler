@@ -1,0 +1,9 @@
+pyyaml
+pyproj
+pypng
+Pillow
+pycairo
+git+https://github.com/wladich/thinplatespline.git
+git+https://github.com/wladich/maprec.git
+git+https://github.com/wladich/ozi_map.git
+git+https://github.com/wladich/pyimagequant.git
