@@ -5,7 +5,7 @@ from array import array
 import png
 import imagequant
 from cStringIO import StringIO
-import  pysqlite2.dbapi2 as sqlite
+import sqlite3 as sqlite
 from functools import partial
 from PIL import Image
 
