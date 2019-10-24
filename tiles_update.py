@@ -10,7 +10,12 @@ import pyproj
 import collections
 import image_store
 from PIL import Image, ImageDraw, ImageChops, ImageFile, ImageFilter
-from itertools import chain
+from itertools import chain, imap
+import os
+from lib import attribution
+import json
+import math
+import hashlib
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
@@ -108,12 +113,23 @@ class JobManager(object):
         self.maps_references_for_tiles = collections.defaultdict(list)
         for map_reference in maps_references:
             maprecord = open_map_reference(map_reference)
-            fingerprint = maprecord.fingerprint
+            fingerprint = self.get_map_fingerprint(maprecord)
             tiles = self._get_tiles_for_maprecord(maprecord)
             for (x, y, z) in tiles:
                 self.new_maps_fingerprints_for_tiles[(x, y, z)].append(fingerprint)
                 self.maps_references_for_tiles[(x, y, z)].append(map_reference)
                 self.new_maps_fingerprints.add(fingerprint)
+
+    def get_map_fingerprint(self, maprecord):
+        fingerprint = maprecord.fingerprint
+        attrib_filename = attribution.get_attrib_path(maprecord.image_path)
+        if os.path.exists(attrib_filename):
+            fingerprint = hashlib.sha1(fingerprint)
+            fingerprint.update(':~:' + open(attrib_filename).read())
+            info_filename = attribution.get_info_path(maprecord.image_path)
+            fingerprint.update(':~:' + open(info_filename).read())
+            fingerprint = fingerprint.hexdigest()
+        return fingerprint
 
     def _get_tiles_for_maprecord(self, maprecord):
         cutline = maprecord.projected_cutline
@@ -164,6 +180,21 @@ class JobManager(object):
                 yield x, y, z, fingerprints
 
 
+def apply_attribution(im, maprecord, src_to_dest_transformer, dest_meters_in_pixel):
+    attrib_filename = attribution.get_attrib_path(maprecord.image_path)
+    if not os.path.exists(attrib_filename):
+        return im
+    attrib_data = json.load(open(attrib_filename))
+    image_info = json.load(open(attribution.get_info_path(maprecord.image_path)))
+    attr_im_info = attribution.make_attribution_image(attrib_data, image_info, src_to_dest_transformer, dest_meters_in_pixel)
+    x, y = src_to_dest_transformer(attrib_data['anchor']['x'], attrib_data['anchor']['y'])
+    x += attr_im_info['x_offset']
+    y += attr_im_info['y_offset']
+    attr_im = attr_im_info['image']
+    im.paste(attr_im, (int(round(x)), int(round((y)))), attr_im)
+    return im
+
+
 def get_reprojected_image(tile_x, tile_y, level, map_reference):
     metatile_delta = config.max_level - level
     tile_size = 256 * (2 ** metatile_delta)
@@ -177,6 +208,14 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference):
         x, y = pyproj.transform(proj_gmerc, maprecord.proj, x, y)
         x, y = maprecord.inv_gcp_transformer.transform(x, y)
         return x, y
+
+    def transform_src_to_dest_pixel(x, y):
+        x, y = maprecord.gcp_transformer.transform(x, y)
+        x, y = pyproj.transform(maprecord.proj, proj_gmerc, x, y)
+        x = (x - tile_origin[0]) / dest_pixel_size
+        y = (tile_origin[1] - y) / dest_pixel_size
+        return x, y
+
     im_src = Image.open(maprecord.image_path)
     src_has_alpha = im_src.mode.endswith('A')
     im_src = im_src.convert('RGBA')
@@ -208,6 +247,11 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference):
     if not src_has_alpha:
         im.putalpha(mask)
     im.paste(0, (0, 0), ImageChops.invert(mask))
+
+    mid_point_y = tile_origin[1] - tile_size_in_gmerc_meters(level) / 2
+    mid_point_lat = proj_gmerc(0, mid_point_y, inverse=True)[1]
+    dest_meters_per_pixel = dest_pixel_size * math.cos(math.radians(mid_point_lat))
+    im = apply_attribution(im, maprecord, transform_src_to_dest_pixel, dest_meters_per_pixel)
     return im
 
 
