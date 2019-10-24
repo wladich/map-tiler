@@ -7,7 +7,7 @@ import imagequant
 from cStringIO import StringIO
 import  pysqlite2.dbapi2 as sqlite
 from functools import partial
-import Image
+from PIL import Image
 
 db_lock = multiprocessing.Lock()
 
@@ -19,7 +19,7 @@ def open_image(s):
         for row in list(pixels):
             ar.extend(row)
         data = ar.tostring()
-        im = Image.fromstring('RGBA', (w, h), data)
+        im = Image.frombytes('RGBA', (w, h), data)
         return im
     else:
         return Image.open(StringIO(s))
