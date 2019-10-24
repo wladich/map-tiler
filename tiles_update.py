@@ -270,8 +270,12 @@ def remove_tiles(metatiles):
 
 def make_tiles_from_metalevel_to_maxlevel(tiles):
     n = 0
-    pool = Pool(cpu_count() + 1)
-    for _ in pool.imap_unordered(process_metatile, tiles):
+    if DEBUG:
+        imap_func = imap
+    else:
+        pool = Pool(cpu_count() + 1)
+        imap_func = pool.imap_unordered
+    for _ in imap_func(process_metatile, tiles):
         n += 1
         print ('\r%.1f%%' % (n * 100. / len(tiles))),
         sys.stdout.flush()
@@ -306,9 +310,13 @@ def build_overviews(altered_tiles):
     for x, y, z in altered_tiles:
         if z > 0:
             need_update.add((x / 2, y / 2, z - 1))
-    pool = Pool(cpu_count() + 1)
+    if DEBUG:
+        imap_func = imap
+    else:
+        pool = Pool(cpu_count() + 1)
+        imap_func = pool.imap_unordered
     n = 0
-    for _ in pool.imap_unordered(build_overview, need_update):
+    for _ in imap_func(build_overview, need_update):
         n += 1
         print '\r%.1f%%' % (n * 100. / len(need_update)),
         sys.stdout.flush()
