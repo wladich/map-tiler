@@ -174,6 +174,8 @@ def save_png_with_palette(im, fd, colors, speed, compression=None):
     pngw.write_array(fd, quantized['image'])
     
 def save_jpeg(im, fd, quality):
+    if im.mode[-1] == 'A':
+        im = im.convert('RGB')
     im.save(fd, 'JPEG', quality=quality)
     
 def get_image_type(im):
