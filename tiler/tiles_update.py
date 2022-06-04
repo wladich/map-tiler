@@ -16,6 +16,7 @@ from .lib import attribution
 import json
 import math
 import hashlib
+import warnings
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
@@ -201,18 +202,21 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference):
     tile_origin = tile_nw_corner(tile_x, tile_y, level)
     dest_pixel_size = tile_size_in_gmerc_meters(level) / tile_size
     maprecord = open_map_reference(map_reference)
+    proj_transformer = pyproj.Transformer.from_proj(
+        proj_gmerc, maprecord.proj, always_xy=True)
 
     def transform_dest_to_src_pixel(xxx_todo_changeme):
         (x, y) = xxx_todo_changeme
         x = x * dest_pixel_size + tile_origin[0]
         y = tile_origin[1] - y * dest_pixel_size
-        x, y = pyproj.transform(proj_gmerc, maprecord.proj, x, y)
+        x, y = proj_transformer.transform(x, y)
         x, y = maprecord.inv_gcp_transformer.transform(x, y)
         return x, y
 
     def transform_src_to_dest_pixel(x, y):
         x, y = maprecord.gcp_transformer.transform(x, y)
-        x, y = pyproj.transform(maprecord.proj, proj_gmerc, x, y)
+        x, y = proj_transformer.transform(
+            x, y, direction=pyproj.transformer.TransformDirection.INVERSE)
         x = (x - tile_origin[0]) / dest_pixel_size
         y = (tile_origin[1] - y) / dest_pixel_size
         return x, y
@@ -440,6 +444,8 @@ def configure_output_storage():
 
 
 def main():
+    warnings.filterwarnings(action='ignore', category=FutureWarning,
+                            message=r"'.*\+init=")
     global config
     config = parse_command_line()
     config.metatile_level = max(config.max_level - METATILE_DELTA, 0)
