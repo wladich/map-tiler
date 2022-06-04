@@ -44,7 +44,9 @@ def create_path(ctx, text, font_size_px, rotate):
     font.set_absolute_size(font_size_px * Pango.SCALE)
     layout.set_alignment(Pango.Alignment.LEFT)
     layout.set_font_description(font)
+    layout.set_line_spacing(0.8)
     layout.set_text(text)
+
     PangoCairo.layout_path(ctx, layout)
     ctx.restore()
 
