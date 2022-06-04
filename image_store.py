@@ -4,7 +4,7 @@ import multiprocessing
 from array import array
 import png
 import imagequant
-from cStringIO import StringIO
+from io import StringIO
 import sqlite3 as sqlite
 from functools import partial
 from PIL import Image
@@ -53,7 +53,7 @@ class MBTilesWriter(object):
     
     def write(self, im, tile_x, tile_y, level):
         encoder = self.encoder(im)
-        image_not_empty = encoder.next()
+        image_not_empty = next(encoder)
         if image_not_empty:
             tile_y = 2 ** level - tile_y - 1
             s = StringIO()
@@ -121,7 +121,7 @@ class FilesWriter(object):
     
     def write(self, im, tile_x, tile_y, level):
         encoder = self.encoder(im)
-        image_not_empty = encoder.next()
+        image_not_empty = next(encoder)
         if image_not_empty:
             filename = self._get_tile_file_name(tile_x, tile_y, level)
             with open(filename, 'w') as f:
@@ -167,7 +167,7 @@ def save_png_rgba(im, fd, compression=None):
 def save_png_with_palette(im, fd, colors, speed, compression=None):
     quantized = imagequant.quantize_image(im, colors=colors, speed=speed)
     palette = list(quantized['palette'])
-    palette = zip(palette[::4], palette[1::4], palette[2::4], palette[3::4])
+    palette = list(zip(palette[::4], palette[1::4], palette[2::4], palette[3::4]))
     if all(c[3]==255 for c in palette):
         palette = [c[:3] for c in palette]
     pngw = png.Writer(size=im.size, palette=palette, compression=compression)

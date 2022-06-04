@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import sys
 import argparse
@@ -8,11 +8,11 @@ from multiprocessing import Pool, cpu_count
 from ozi_map import ozi_to_maprec
 import pyproj
 import collections
-import image_store
+from tiler2 import image_store
 from PIL import Image, ImageDraw, ImageChops, ImageFile, ImageFilter
-from itertools import chain, imap
+from itertools import chain
 import os
-from lib import attribution
+from .lib import attribution
 import json
 import math
 import hashlib
@@ -86,8 +86,8 @@ def calc_area(points):
 def reproject_cutline_gmerc(src_proj, points):
     if points:
         points = densify_linestring(points)
-        points1 = zip(*pyproj.transform(src_proj, proj_gmerc, *zip(*points)))
-        points2 = zip(*pyproj.transform(src_proj, proj_gmerc_180, *zip(*points)))
+        points1 = list(zip(*pyproj.transform(src_proj, proj_gmerc, *list(zip(*points)))))
+        points2 = list(zip(*pyproj.transform(src_proj, proj_gmerc_180, *list(zip(*points)))))
         return points1 if calc_area(points1) <= calc_area(points2) else points2
     return []
 
@@ -134,15 +134,15 @@ class JobManager(object):
     def _get_tiles_for_maprecord(self, maprecord):
         cutline = maprecord.projected_cutline
         cutline = reproject_cutline_gmerc(maprecord.proj, cutline)
-        x, y = zip(*cutline)
+        x, y = list(zip(*cutline))
         tx1, ty2 = tile_from_gmerc_meters(min(x), min(y), self.tile_zoom)
         tx2, ty1 = tile_from_gmerc_meters(max(x), max(y), self.tile_zoom)
-        return [(x_, y_, self.tile_zoom) for x_ in xrange(tx1, tx2+1) for y_ in xrange(ty1, ty2+1)]
+        return [(x_, y_, self.tile_zoom) for x_ in range(tx1, tx2+1) for y_ in range(ty1, ty2+1)]
 
     def get_tiles_needing_update(self):
         if self._tiles_needing_update is None:
             self._tiles_needing_update = []
-            for k, v in self.new_maps_fingerprints_for_tiles.items():
+            for k, v in list(self.new_maps_fingerprints_for_tiles.items()):
                 if self.old_maps_fingerprints_for_tiles.get(k) != v:
                     self._tiles_needing_update.append((k, self.maps_references_for_tiles[k]))
         return self._tiles_needing_update
@@ -163,7 +163,7 @@ class JobManager(object):
 
     def apply_update(self):
         s = []
-        for tile, fingerprints in self.new_maps_fingerprints_for_tiles.items():
+        for tile, fingerprints in list(self.new_maps_fingerprints_for_tiles.items()):
             s.append('%s,%s,%s,%s\n' % (tile + ('-'.join(fingerprints),)))
         s = ''.join(s)
         tile_store.write_metadata(self.prev_state_filename, s)
@@ -202,7 +202,8 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference):
     dest_pixel_size = tile_size_in_gmerc_meters(level) / tile_size
     maprecord = open_map_reference(map_reference)
 
-    def transform_dest_to_src_pixel((x, y)):
+    def transform_dest_to_src_pixel(xxx_todo_changeme):
+        (x, y) = xxx_todo_changeme
         x = x * dest_pixel_size + tile_origin[0]
         y = tile_origin[1] - y * dest_pixel_size
         x, y = pyproj.transform(proj_gmerc, maprecord.proj, x, y)
@@ -225,14 +226,14 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference):
         src_has_alpha = True
     cell_size = 64
     mesh = []
-    for cell_x in xrange(tile_size / cell_size):
-        for cell_y in xrange(tile_size / cell_size):
+    for cell_x in range(tile_size / cell_size):
+        for cell_y in range(tile_size / cell_size):
             x1 = cell_x * cell_size
             y1 = cell_y * cell_size
             x2 = x1 + cell_size
             y2 = y1 + cell_size
             quad = (x1, y1), (x1, y2), (x2, y2), (x2, y1)
-            quad = map(transform_dest_to_src_pixel, quad)
+            quad = list(map(transform_dest_to_src_pixel, quad))
             quad = sum(quad, tuple())
             mesh.append(((x1, y1, x2, y2), quad))
     im = im_src.transform((tile_size, tile_size), Image.MESH, mesh, Image.BICUBIC)
@@ -262,18 +263,19 @@ def slice_metatile(im, metatile_x, metatile_y, dest_level):
     tile_x0 = metatile_x * meta_q
     tile_y0 = metatile_y * meta_q
     max_tile = 2 ** dest_level
-    for d_tile_y in xrange(meta_q):
+    for d_tile_y in range(meta_q):
         y0 = d_tile_y * 256
-        for d_tile_x in xrange(meta_q):
+        for d_tile_x in range(meta_q):
             x0 = d_tile_x * 256
             im2 = im.crop([x0, y0, x0+256, y0+256])
             tile_store.write(im2, (tile_x0 + d_tile_x) % max_tile, tile_y0 + d_tile_y, dest_level)
 
 
-def process_metatile(((tile_x, tile_y, metatile_level), map_references)):
+def process_metatile(xxx_todo_changeme1):
     # 1. render
     # 2. cut tiles
     # 3. shrink and cut overviews
+    ((tile_x, tile_y, metatile_level), map_references) = xxx_todo_changeme1
     im = None
     for map_reference in map_references:
         im2 = get_reprojected_image(tile_x, tile_y, metatile_level, map_reference)
@@ -281,7 +283,7 @@ def process_metatile(((tile_x, tile_y, metatile_level), map_references)):
             im = im2
         else:
             im.paste(im2, (0, 0), im2)
-    for level in xrange(config.max_level, metatile_level, -1):
+    for level in range(config.max_level, metatile_level, -1):
         slice_metatile(im, tile_x, tile_y, level)
         im = im.resize((im.size[0] / 2, )*2, Image.ANTIALIAS)
     max_tile = 2 ** metatile_level
@@ -300,12 +302,12 @@ def remove_tiles(metatiles):
             tiles_overviews.add((tx, ty, level))
         tx, ty, level = tile
         w = 1
-        for level in xrange(level + 1, config.max_level + 1):
+        for level in range(level + 1, config.max_level + 1):
             tx *= 2
             ty *= 2
             w *= 2
-            for x in xrange(tx, tx + w):
-                for y in xrange(ty, ty + w):
+            for x in range(tx, tx + w):
+                for y in range(ty, ty + w):
                     tile_store.remove(x, y, level)
 
     for tile in tiles_overviews:
@@ -321,12 +323,13 @@ def make_tiles_from_metalevel_to_maxlevel(tiles):
         imap_func = pool.imap_unordered
     for _ in imap_func(process_metatile, tiles):
         n += 1
-        print ('\r%.1f%%' % (n * 100. / len(tiles))),
+        print(('\r%.1f%%' % (n * 100. / len(tiles))), end=' ')
         sys.stdout.flush()
-    print
+    print()
 
 
-def build_overview((x, y, z)):
+def build_overview(xxx_todo_changeme2):
+    (x, y, z) = xxx_todo_changeme2
     im = Image.new('RGBA', (512, 512))
     im2 = tile_store.open(x * 2, y * 2, z + 1)
     if im2 is not None:
@@ -362,9 +365,9 @@ def build_overviews(altered_tiles):
     n = 0
     for _ in imap_func(build_overview, need_update):
         n += 1
-        print '\r%.1f%%' % (n * 100. / len(need_update)),
+        print('\r%.1f%%' % (n * 100. / len(need_update)), end=' ')
         sys.stdout.flush()
-    print
+    print()
     if need_update:
         build_overviews(need_update)
 
@@ -428,9 +431,9 @@ def parse_command_line():
 
 
 def print_job_info(job):
-    print 'Maps added: %s' % job.get_added_maps_n()
-    print 'Maps removed: %s' % job.get_removed_maps_n()
-    print 'Metatiles to rebuild: %s' % len(job.get_tiles_needing_update())
+    print('Maps added: %s' % job.get_added_maps_n())
+    print('Maps removed: %s' % job.get_removed_maps_n())
+    print('Metatiles to rebuild: %s' % len(job.get_tiles_needing_update()))
 
 
 def configure_output_storage():
@@ -451,20 +454,20 @@ def main():
         t = time.time()
         remove_tiles(job.get_removed_tiles())
         make_tiles_from_metalevel_to_maxlevel(job.get_tiles_needing_update())
-        print 'Building overviews'
+        print('Building overviews')
         overview_tiles_needing_update = (tile for (tile, _) in job.get_tiles_needing_update())
         overview_tiles_needing_update = chain(overview_tiles_needing_update, job.get_removed_tiles())
         overview_tiles_needing_update = ((x % (2**z), y, z) for (x, y, z) in overview_tiles_needing_update)
         build_overviews(overview_tiles_needing_update)
         job.apply_update()
-        print 'Done in %.1f seconds' % (time.time() - t)
+        print('Done in %.1f seconds' % (time.time() - t))
     else:
-        print 'To actualy update mbtiles db, specify "-f" option'
+        print('To actualy update mbtiles db, specify "-f" option')
 
 if __name__ == '__main__':
 
     try:
         main()
     except UserInputError as e:
-        print e
+        print(e)
         exit(1)

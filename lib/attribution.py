@@ -1,9 +1,14 @@
+
 # coding: utf-8
+import math
+
 from PIL import Image
 import cairo
-import pango
-import pangocairo
-import math
+import gi
+gi.require_version('PangoCairo', '1.0')
+gi.require_version('Pango', '1.0')
+from gi.repository import Pango, PangoCairo
+
 
 
 # FONTNAME = 'Droid Sans'
@@ -16,7 +21,7 @@ _font_installed = None
 def check_font_installed():
     global _font_installed
     if _font_installed is None:
-        for font in pangocairo.cairo_font_map_get_default().list_families():
+        for font in PangoCairo.font_map_get_default().list_families():
             if font.get_name() == FONTNAME:
                 _font_installed = True
                 break
@@ -34,15 +39,13 @@ def create_path(ctx, text, font_size_px, rotate):
 
     ctx.rotate(rotate)
     ctx.set_antialias(cairo.ANTIALIAS_SUBPIXEL)
-    pangocairo_context = pangocairo.CairoContext(ctx)
-    pangocairo_context.set_antialias(cairo.ANTIALIAS_SUBPIXEL)
-    layout = pangocairo_context.create_layout()
-    font = pango.FontDescription(FONTNAME)
-    font.set_absolute_size(font_size_px * pango.SCALE)
-    layout.set_alignment(pango.ALIGN_LEFT)
+    layout = PangoCairo.create_layout(ctx)
+    font = Pango.FontDescription(FONTNAME)
+    font.set_absolute_size(font_size_px * Pango.SCALE)
+    layout.set_alignment(Pango.Alignment.LEFT)
     layout.set_font_description(font)
     layout.set_text(text)
-    pangocairo_context.layout_path(layout)
+    PangoCairo.layout_path(ctx, layout)
     ctx.restore()
 
 
@@ -64,7 +67,7 @@ def draw(text, font_size_px, rotate):
     ctx.stroke_preserve()
     ctx.set_source_rgb(255, 255, 255)
     ctx.fill_preserve()
-    im = Image.frombuffer("RGBA", (width, height), surface.get_data(), "raw", "BGRA", 0, 1)
+    im = Image.frombuffer("RGBA", (width, height), surface.get_data().tobytes(), "raw", "BGRA", 0, 1)
     return {'image': im, 'x_offset': x_offset, 'y_offset': y_offset}
 
 
@@ -75,10 +78,10 @@ def make_attribution_text(image_info):
         text.append(image_info['date'].split('-')[0])
     scale = image_info.get('scale')
     if scale:
-        s = u'1:{:,}'.format(int(image_info['scale'])).replace(',', ' ')
+        s = '1:{:,}'.format(int(image_info['scale'])).replace(',', ' ')
         h = image_info.get('h')
         if h:
-            s += u'  h=%s м' % image_info['h']
+            s += '  h=%s м' % image_info['h']
         text.append(s)
     event = image_info.get('event')
     if event:
@@ -134,7 +137,7 @@ if __name__ == '__main__':
     # im = draw('1:25 000 Жаркий июль', 1, 0 )
     # print im.size
     # im.show()
-    info = {'scale': '25000', 'h': 10, 'date': u'2014-1-2'}
+    info = {'scale': '25000', 'h': 10, 'date': '2014-1-2'}
     transformer = lambda x, y: (x, y)
     data = ({'anchor': {'x': 542, 'y': 333},
              'scale_denom': 7500, 'angle': .0,})
