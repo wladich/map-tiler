@@ -4,7 +4,7 @@ import multiprocessing
 from array import array
 import png
 import imagequant
-from io import StringIO
+from io import BytesIO
 import sqlite3 as sqlite
 from functools import partial
 from PIL import Image
@@ -12,17 +12,17 @@ from PIL import Image
 db_lock = multiprocessing.Lock()
 
 def open_image(s):
-    if s.startswith('\x89PNG'):
+    if s.startswith(b'\x89PNG'):
         r = png.Reader(bytes=s)
         w, h, pixels, meta = r.asRGBA()
         ar = array('B')
         for row in list(pixels):
             ar.extend(row)
-        data = ar.tostring()
+        data = ar.tobytes()
         im = Image.frombytes('RGBA', (w, h), data)
         return im
     else:
-        return Image.open(StringIO(s))
+        return Image.open(BytesIO(s))
 
 class MBTilesWriter(object):
     SCHEME = '''
@@ -52,18 +52,20 @@ class MBTilesWriter(object):
         return conn
     
     def write(self, im, tile_x, tile_y, level):
+        assert isinstance(tile_x, int)
+        assert isinstance(tile_y, int)
+        assert isinstance(level, int)
         encoder = self.encoder(im)
         image_not_empty = next(encoder)
         if image_not_empty:
             tile_y = 2 ** level - tile_y - 1
-            s = StringIO()
+            s = BytesIO()
             encoder.send(s)
-            s = buffer(s.getvalue())
             with db_lock:
                 conn = self.conn
                 conn.execute('''
                     INSERT INTO tiles (zoom_level, tile_column, tile_row, tile_data) VALUES (?,?,?,?)''', 
-                    (level, tile_x, tile_y, s))
+                    (level, tile_x, tile_y, s.getvalue()))
                 conn.commit()
                 conn.close()
         else:
@@ -82,7 +84,7 @@ class MBTilesWriter(object):
         conn = self.conn
         row = self.conn.execute('SELECT tile_data FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=?', (level, tile_x, tile_y)).fetchone()
         if row:
-            return open_image(str(row[0]))
+            return open_image(row[0])
         conn.close()
             
     def write_metadata(self, key, value):
@@ -120,6 +122,9 @@ class FilesWriter(object):
         return filename
     
     def write(self, im, tile_x, tile_y, level):
+        assert isinstance(tile_x, int)
+        assert isinstance(tile_y, int)
+        assert isinstance(level, int)
         encoder = self.encoder(im)
         image_not_empty = next(encoder)
         if image_not_empty:

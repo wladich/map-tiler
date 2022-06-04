@@ -124,10 +124,10 @@ class JobManager(object):
         fingerprint = maprecord.fingerprint
         attrib_filename = attribution.get_attrib_path(maprecord.image_path)
         if os.path.exists(attrib_filename):
-            fingerprint = hashlib.sha1(fingerprint)
-            fingerprint.update(':~:' + open(attrib_filename).read())
+            fingerprint = hashlib.sha1(fingerprint.encode())
+            fingerprint.update(b':~:' + open(attrib_filename, 'rb').read())
             info_filename = attribution.get_info_path(maprecord.image_path)
-            fingerprint.update(':~:' + open(info_filename).read())
+            fingerprint.update(b':~:' + open(info_filename, 'rb').read())
             fingerprint = fingerprint.hexdigest()
         return fingerprint
 
@@ -226,8 +226,8 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference):
         src_has_alpha = True
     cell_size = 64
     mesh = []
-    for cell_x in range(tile_size / cell_size):
-        for cell_y in range(tile_size / cell_size):
+    for cell_x in range(tile_size // cell_size):
+        for cell_y in range(tile_size // cell_size):
             x1 = cell_x * cell_size
             y1 = cell_y * cell_size
             x2 = x1 + cell_size
@@ -285,7 +285,7 @@ def process_metatile(xxx_todo_changeme1):
             im.paste(im2, (0, 0), im2)
     for level in range(config.max_level, metatile_level, -1):
         slice_metatile(im, tile_x, tile_y, level)
-        im = im.resize((im.size[0] / 2, )*2, Image.ANTIALIAS)
+        im = im.resize((im.size[0] // 2, )*2, Image.ANTIALIAS)
     max_tile = 2 ** metatile_level
     tile_store.write(im, tile_x % max_tile, tile_y, metatile_level)
 
@@ -317,7 +317,7 @@ def remove_tiles(metatiles):
 def make_tiles_from_metalevel_to_maxlevel(tiles):
     n = 0
     if DEBUG:
-        imap_func = imap
+        imap_func = map
     else:
         pool = Pool(cpu_count() + 1)
         imap_func = pool.imap_unordered
@@ -356,9 +356,9 @@ def build_overviews(altered_tiles):
     need_update = set()
     for x, y, z in altered_tiles:
         if z > 0:
-            need_update.add((x / 2, y / 2, z - 1))
+            need_update.add((x // 2, y // 2, z - 1))
     if DEBUG:
-        imap_func = imap
+        imap_func = map
     else:
         pool = Pool(cpu_count() + 1)
         imap_func = pool.imap_unordered
@@ -370,10 +370,6 @@ def build_overviews(altered_tiles):
     print()
     if need_update:
         build_overviews(need_update)
-
-
-def filename_arg_type(s):
-    return s.decode(sys.getfilesystemencoding())
 
 
 def parse_image_format(s):
@@ -421,7 +417,7 @@ def parse_command_line():
     parser.add_argument('--storage-format', choices=['files', 'mbtiles'], required=True)
     parser.add_argument('--max-level', type=int, required=True)
     parser.add_argument('--highlight-level', type=int)
-    parser.add_argument('maps', metavar='FILE', type=filename_arg_type, nargs='+')
+    parser.add_argument('maps', metavar='FILE', type=str, nargs='+')
     parser.add_argument('--image-format', type=parse_image_format, required=True)
     parser.add_argument('--image-border-format', type=parse_image_format)
     parser.add_argument('--out', metavar='PATH', dest='out_path', required=True,
@@ -465,7 +461,6 @@ def main():
         print('To actualy update mbtiles db, specify "-f" option')
 
 if __name__ == '__main__':
-
     try:
         main()
     except UserInputError as e:
