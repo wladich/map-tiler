@@ -8,7 +8,7 @@ from multiprocessing import Pool, cpu_count
 from ozi_map import ozi_to_maprec
 import pyproj
 import collections
-from tiler2 import image_store
+from . import image_store
 from PIL import Image, ImageDraw, ImageChops, ImageFile, ImageFilter
 from itertools import chain
 import os
