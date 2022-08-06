@@ -23,10 +23,25 @@ Image.MAX_IMAGE_PIXELS = None
 
 
 DEBUG = False
-proj_gmerc = pyproj.Proj('+init=epsg:3785')
-proj_gmerc_180 = pyproj.Proj(
-    '+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=180.0 +x_0=20037508.342789244 +y_0=0 +k=1.0 '
-    '+units=m +nadgrids=@null +wktext  +no_defs')
+crs_gmerc = pyproj.CRS('+init=epsg:3857')
+
+crs_gmerc_180_dict = crs_gmerc.to_json_dict()
+lon_patched = False
+easting_patched = False
+for rec in crs_gmerc_180_dict['conversion']['parameters']:
+    if rec['name'] == 'Longitude of natural origin':
+        rec['value'] = 180
+        lon_patched = True
+
+    if rec['name'] == 'False easting':
+        rec['value'] = 20037508.342789244
+        easting_patched = True
+assert lon_patched and easting_patched
+
+
+crs_gmerc_180 = pyproj.CRS.from_user_input(crs_gmerc_180_dict)
+
+
 max_gmerc_coord = 20037508.342789244
 METATILE_DELTA = 3
 
@@ -84,11 +99,11 @@ def calc_area(points):
         p1 = p2
     return abs(area)
 
-def reproject_cutline_gmerc(src_proj, points):
+def reproject_cutline_gmerc(src_crs, points):
     if points:
         points = densify_linestring(points)
-        points1 = list(zip(*pyproj.transform(src_proj, proj_gmerc, *list(zip(*points)))))
-        points2 = list(zip(*pyproj.transform(src_proj, proj_gmerc_180, *list(zip(*points)))))
+        points1 = list(zip(*pyproj.transform(src_crs, crs_gmerc, *list(zip(*points)), always_xy=True)))
+        points2 = list(zip(*pyproj.transform(src_crs, crs_gmerc_180, *list(zip(*points)), always_xy=True)))
         return points1 if calc_area(points1) <= calc_area(points2) else points2
     return []
 
@@ -134,7 +149,7 @@ class JobManager(object):
 
     def _get_tiles_for_maprecord(self, maprecord):
         cutline = maprecord.projected_cutline
-        cutline = reproject_cutline_gmerc(maprecord.proj, cutline)
+        cutline = reproject_cutline_gmerc(maprecord.crs, cutline)
         x, y = list(zip(*cutline))
         tx1, ty2 = tile_from_gmerc_meters(min(x), min(y), self.tile_zoom)
         tx2, ty1 = tile_from_gmerc_meters(max(x), max(y), self.tile_zoom)
@@ -202,8 +217,8 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference):
     tile_origin = tile_nw_corner(tile_x, tile_y, level)
     dest_pixel_size = tile_size_in_gmerc_meters(level) / tile_size
     maprecord = open_map_reference(map_reference)
-    proj_transformer = pyproj.Transformer.from_proj(
-        proj_gmerc, maprecord.proj, always_xy=True)
+    proj_transformer = pyproj.Transformer.from_crs(
+        crs_gmerc, maprecord.crs, always_xy=True)
 
     def transform_dest_to_src_pixel(xxx_todo_changeme):
         (x, y) = xxx_todo_changeme
@@ -243,7 +258,7 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference):
     im = im_src.transform((tile_size, tile_size), Image.MESH, mesh, Image.BICUBIC)
     cutline_mask = Image.new('L', (tile_size, tile_size))
     cutline = maprecord.projected_cutline
-    cutline = reproject_cutline_gmerc(maprecord.proj, cutline)
+    cutline = reproject_cutline_gmerc(maprecord.crs, cutline)
     cutline = [((x - tile_origin[0]) / dest_pixel_size, (tile_origin[1] - y) / dest_pixel_size) for x, y in cutline]
     draw = ImageDraw.Draw(cutline_mask)
     draw.polygon(cutline, fill=255, outline=255)
@@ -254,7 +269,8 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference):
     im.paste(0, (0, 0), ImageChops.invert(mask))
 
     mid_point_y = tile_origin[1] - tile_size_in_gmerc_meters(level) / 2
-    mid_point_lat = proj_gmerc(0, mid_point_y, inverse=True)[1]
+    mid_point_lat = pyproj.transform(
+        crs_gmerc, crs_gmerc.geodetic_crs, 0, mid_point_y, always_xy=True)[1]
     dest_meters_per_pixel = dest_pixel_size * math.cos(math.radians(mid_point_lat))
     im = apply_attribution(im, maprecord, transform_src_to_dest_pixel, dest_meters_per_pixel)
     return im
