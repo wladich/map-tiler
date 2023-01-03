@@ -20,6 +20,7 @@ from ozi_map import ozi_to_maprec
 from . import image_store
 from . import attribution
 
+PREV_STATE_FILENAME = "tiles_sources"
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
 
@@ -124,9 +125,7 @@ def reproject_cutline_gmerc(src_crs, points):
 
 
 class JobManager(object):
-    prev_state_filename = "tiles_sources"
-
-    def __init__(self, maps_references, tile_zoom):
+    def __init__(self, maps_references, tile_zoom, prev_state=None):
         self.tile_zoom = tile_zoom
         self._tiles_needing_update = None
         self._removed_tiles = None
@@ -135,9 +134,10 @@ class JobManager(object):
         self.new_maps_fingerprints = set()
 
         self.old_maps_fingerprints_for_tiles = {}
-        for x, y, z, fingerprints in self._load_state_file():
-            self.old_maps_fingerprints_for_tiles[(x, y, z)] = fingerprints
-            self.old_maps_fingerprints.update(fingerprints)
+        if prev_state:
+            for x, y, z, fingerprints in self._load_state(prev_state):
+                self.old_maps_fingerprints_for_tiles[(x, y, z)] = fingerprints
+                self.old_maps_fingerprints.update(fingerprints)
 
         self.new_maps_fingerprints_for_tiles = collections.defaultdict(list)
         self.maps_references_for_tiles = collections.defaultdict(list)
@@ -205,16 +205,14 @@ class JobManager(object):
         s = "".join(s)
         tile_store.write_metadata(self.prev_state_filename, s)
 
-    def _load_state_file(self):
-        state = tile_store.read_metadata(self.prev_state_filename)
-        if state:
-            for line in state.splitlines():
-                x, y, z, fingerprints = line.strip().split(",")
-                x = int(x)
-                y = int(y)
-                z = int(z)
-                fingerprints = fingerprints.split("-")
-                yield x, y, z, fingerprints
+    def _load_state(self, state_data):
+        for line in state_data.splitlines():
+            x, y, z, fingerprints = line.strip().split(",")
+            x = int(x)
+            y = int(y)
+            z = int(z)
+            fingerprints = fingerprints.split("-")
+            yield x, y, z, fingerprints
 
 
 def apply_attribution(im, maprecord, src_to_dest_transformer, dest_meters_in_pixel):
@@ -517,7 +515,8 @@ def main():
     config = parse_command_line()
     config.metatile_level = max(config.max_level - METATILE_DELTA, 0)
     configure_output_storage()
-    job = JobManager(config.maps, config.metatile_level)
+    prev_state = tile_store.read_metadata(PREV_STATE_FILENAME)
+    job = JobManager(config.maps, config.metatile_level, prev_state)
     print_job_info(job)
     if config.do_update:
         t = time.time()
