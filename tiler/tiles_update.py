@@ -507,9 +507,7 @@ def configure_output_storage():
 
 
 def main():
-    warnings.filterwarnings(
-        action="ignore", category=FutureWarning, message=r"'.*\+init="
-    )
+    warnings.filterwarnings(action="ignore", category=FutureWarning)
     global config
     config = parse_command_line()
     config.metatile_level = max(config.max_level - METATILE_DELTA, 0)
