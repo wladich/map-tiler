@@ -18,7 +18,7 @@ from maprec import Maprecord, densify_linestring
 from ozi_map import ozi_to_maprec
 
 from . import image_store
-from .lib import attribution
+from . import attribution
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
