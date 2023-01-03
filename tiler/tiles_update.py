@@ -236,9 +236,7 @@ def apply_attribution(im, maprecord, src_to_dest_transformer, dest_meters_in_pix
     return im
 
 
-def get_reprojected_image(tile_x, tile_y, level, map_reference):
-    metatile_delta = config.max_level - level
-    tile_size = 256 * (2**metatile_delta)
+def get_reprojected_image(tile_x, tile_y, level, map_reference, tile_size):
     tile_origin = tile_nw_corner(tile_x, tile_y, level)
     dest_pixel_size = tile_size_in_gmerc_meters(level) / tile_size
     maprecord = open_map_reference(map_reference)
@@ -326,18 +324,25 @@ def slice_metatile(im, metatile_x, metatile_y, dest_level):
             )
 
 
+def render_tile(tile_x, tile_y, tile_level, map_references, tile_size):
+    im = None
+    for map_reference in map_references:
+        im2 = get_reprojected_image(tile_x, tile_y, tile_level, map_reference, tile_size)
+        if im is None:
+            im = im2
+        else:
+            im.paste(im2, (0, 0), im2)
+    return im
+
+
 def process_metatile(xxx_todo_changeme1):
     # 1. render
     # 2. cut tiles
     # 3. shrink and cut overviews
     ((tile_x, tile_y, metatile_level), map_references) = xxx_todo_changeme1
-    im = None
-    for map_reference in map_references:
-        im2 = get_reprojected_image(tile_x, tile_y, metatile_level, map_reference)
-        if im is None:
-            im = im2
-        else:
-            im.paste(im2, (0, 0), im2)
+    metatile_delta = config.max_level - metatile_level
+    tile_size = 256 * (2**metatile_delta)
+    im = render_tile(tile_x, tile_y, metatile_level, map_references, tile_size)
     for level in range(config.max_level, metatile_level, -1):
         slice_metatile(im, tile_x, tile_y, level)
         im = im.resize((im.size[0] // 2,) * 2, Image.ANTIALIAS)
