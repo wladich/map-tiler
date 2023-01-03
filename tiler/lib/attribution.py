@@ -116,7 +116,6 @@ def make_attribution_image(
     xy_dest_2 = src_pixel_to_dest_pixel_transformer(xy_src_2["x"], xy_src_2["y"])
 
     dest_angle = math.atan2(xy_dest_2[1] - xy_dest_1[1], xy_dest_2[0] - xy_dest_1[0])
-    # print 'image angle', math.degrees(attrib_data['angle']), 'proj anfle', math.degrees(dest_angle)
     return draw(text, dest_font_size, dest_angle)
 
 
@@ -142,18 +141,3 @@ def get_attrib_path(image_path):
 
 def get_info_path(image_path):
     return image_path + ".info.json"
-
-
-if __name__ == "__main__":
-    # im = draw('1:25 000 Жаркий июль', 1, 0 )
-    # print im.size
-    # im.show()
-    info = {"scale": "25000", "h": 10, "date": "2014-1-2"}
-    transformer = lambda x, y: (x, y)
-    data = {
-        "anchor": {"x": 542, "y": 333},
-        "scale_denom": 7500,
-        "angle": 0.0,
-    }
-
-    make_attribution_image(data, info, transformer, 1).show()
