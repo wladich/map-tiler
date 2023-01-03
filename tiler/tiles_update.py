@@ -1,40 +1,42 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import sys
 import argparse
-import time
-from maprec import Maprecord, densify_linestring
-from multiprocessing import Pool, cpu_count
-from ozi_map import ozi_to_maprec
-import pyproj
 import collections
-from . import image_store
-from PIL import Image, ImageDraw, ImageChops, ImageFile, ImageFilter
-from itertools import chain
-import os
-from .lib import attribution
+import hashlib
 import json
 import math
-import hashlib
+import os
+import sys
+import time
 import warnings
+from itertools import chain
+from multiprocessing import Pool, cpu_count
+
+import pyproj
+from PIL import Image, ImageChops, ImageDraw, ImageFile, ImageFilter
+from maprec import Maprecord, densify_linestring
+from ozi_map import ozi_to_maprec
+
+from . import image_store
+from .lib import attribution
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
 
 
 DEBUG = False
-crs_gmerc = pyproj.CRS('+init=epsg:3857')
+crs_gmerc = pyproj.CRS("+init=epsg:3857")
 
 crs_gmerc_180_dict = crs_gmerc.to_json_dict()
 lon_patched = False
 easting_patched = False
-for rec in crs_gmerc_180_dict['conversion']['parameters']:
-    if rec['name'] == 'Longitude of natural origin':
-        rec['value'] = 180
+for rec in crs_gmerc_180_dict["conversion"]["parameters"]:
+    if rec["name"] == "Longitude of natural origin":
+        rec["value"] = 180
         lon_patched = True
 
-    if rec['name'] == 'False easting':
-        rec['value'] = 20037508.342789244
+    if rec["name"] == "False easting":
+        rec["value"] = 20037508.342789244
         easting_patched = True
 assert lon_patched and easting_patched
 
@@ -45,7 +47,7 @@ crs_gmerc_180 = pyproj.CRS.from_user_input(crs_gmerc_180_dict)
 max_gmerc_coord = 20037508.342789244
 METATILE_DELTA = 3
 
-highlight_color = 0xdb, 0x5a, 0x00
+highlight_color = 0xDB, 0x5A, 0x00
 
 config = None
 tile_store = None
@@ -56,7 +58,7 @@ class UserInputError(Exception):
 
 
 def tile_size_in_gmerc_meters(level):
-    return max_gmerc_coord * 2 / 2 ** level
+    return max_gmerc_coord * 2 / 2**level
 
 
 def tile_from_gmerc_meters(x, y, level):
@@ -75,10 +77,10 @@ def tile_nw_corner(tile_x, tile_y, level):
 
 def open_map_reference(filename):
     """file can be  in formats:
-       1) maprecord yaml (or json)
-       2) ozi .map
+    1) maprecord yaml (or json)
+    2) ozi .map
     """
-    if filename.endswith('.map'):
+    if filename.endswith(".map"):
         data = ozi_to_maprec.get_maprecord_from_ozi_file(filename)
         maprecord = Maprecord(filename, data)
     else:
@@ -99,17 +101,30 @@ def calc_area(points):
         p1 = p2
     return abs(area)
 
+
 def reproject_cutline_gmerc(src_crs, points):
     if points:
         points = densify_linestring(points)
-        points1 = list(zip(*pyproj.transform(src_crs, crs_gmerc, *list(zip(*points)), always_xy=True)))
-        points2 = list(zip(*pyproj.transform(src_crs, crs_gmerc_180, *list(zip(*points)), always_xy=True)))
+        points1 = list(
+            zip(
+                *pyproj.transform(
+                    src_crs, crs_gmerc, *list(zip(*points)), always_xy=True
+                )
+            )
+        )
+        points2 = list(
+            zip(
+                *pyproj.transform(
+                    src_crs, crs_gmerc_180, *list(zip(*points)), always_xy=True
+                )
+            )
+        )
         return points1 if calc_area(points1) <= calc_area(points2) else points2
     return []
 
 
 class JobManager(object):
-    prev_state_filename = 'tiles_sources'
+    prev_state_filename = "tiles_sources"
 
     def __init__(self, maps_references, tile_zoom):
         self.tile_zoom = tile_zoom
@@ -141,9 +156,9 @@ class JobManager(object):
         attrib_filename = attribution.get_attrib_path(maprecord.image_path)
         if os.path.exists(attrib_filename):
             fingerprint = hashlib.sha1(fingerprint.encode())
-            fingerprint.update(b':~:' + open(attrib_filename, 'rb').read())
+            fingerprint.update(b":~:" + open(attrib_filename, "rb").read())
             info_filename = attribution.get_info_path(maprecord.image_path)
-            fingerprint.update(b':~:' + open(info_filename, 'rb').read())
+            fingerprint.update(b":~:" + open(info_filename, "rb").read())
             fingerprint = fingerprint.hexdigest()
         return fingerprint
 
@@ -153,14 +168,20 @@ class JobManager(object):
         x, y = list(zip(*cutline))
         tx1, ty2 = tile_from_gmerc_meters(min(x), min(y), self.tile_zoom)
         tx2, ty1 = tile_from_gmerc_meters(max(x), max(y), self.tile_zoom)
-        return [(x_, y_, self.tile_zoom) for x_ in range(tx1, tx2+1) for y_ in range(ty1, ty2+1)]
+        return [
+            (x_, y_, self.tile_zoom)
+            for x_ in range(tx1, tx2 + 1)
+            for y_ in range(ty1, ty2 + 1)
+        ]
 
     def get_tiles_needing_update(self):
         if self._tiles_needing_update is None:
             self._tiles_needing_update = []
             for k, v in list(self.new_maps_fingerprints_for_tiles.items()):
                 if self.old_maps_fingerprints_for_tiles.get(k) != v:
-                    self._tiles_needing_update.append((k, self.maps_references_for_tiles[k]))
+                    self._tiles_needing_update.append(
+                        (k, self.maps_references_for_tiles[k])
+                    )
         return self._tiles_needing_update
 
     def get_added_maps_n(self):
@@ -180,19 +201,19 @@ class JobManager(object):
     def apply_update(self):
         s = []
         for tile, fingerprints in list(self.new_maps_fingerprints_for_tiles.items()):
-            s.append('%s,%s,%s,%s\n' % (tile + ('-'.join(fingerprints),)))
-        s = ''.join(s)
+            s.append("%s,%s,%s,%s\n" % (tile + ("-".join(fingerprints),)))
+        s = "".join(s)
         tile_store.write_metadata(self.prev_state_filename, s)
 
     def _load_state_file(self):
         state = tile_store.read_metadata(self.prev_state_filename)
         if state:
             for line in state.splitlines():
-                x, y, z, fingerprints = line.strip().split(',')
+                x, y, z, fingerprints = line.strip().split(",")
                 x = int(x)
                 y = int(y)
                 z = int(z)
-                fingerprints = fingerprints.split('-')
+                fingerprints = fingerprints.split("-")
                 yield x, y, z, fingerprints
 
 
@@ -202,23 +223,28 @@ def apply_attribution(im, maprecord, src_to_dest_transformer, dest_meters_in_pix
         return im
     attrib_data = json.load(open(attrib_filename))
     image_info = json.load(open(attribution.get_info_path(maprecord.image_path)))
-    attr_im_info = attribution.make_attribution_image(attrib_data, image_info, src_to_dest_transformer, dest_meters_in_pixel)
-    x, y = src_to_dest_transformer(attrib_data['anchor']['x'], attrib_data['anchor']['y'])
-    x += attr_im_info['x_offset']
-    y += attr_im_info['y_offset']
-    attr_im = attr_im_info['image']
+    attr_im_info = attribution.make_attribution_image(
+        attrib_data, image_info, src_to_dest_transformer, dest_meters_in_pixel
+    )
+    x, y = src_to_dest_transformer(
+        attrib_data["anchor"]["x"], attrib_data["anchor"]["y"]
+    )
+    x += attr_im_info["x_offset"]
+    y += attr_im_info["y_offset"]
+    attr_im = attr_im_info["image"]
     im.paste(attr_im, (int(round(x)), int(round((y)))), attr_im)
     return im
 
 
 def get_reprojected_image(tile_x, tile_y, level, map_reference):
     metatile_delta = config.max_level - level
-    tile_size = 256 * (2 ** metatile_delta)
+    tile_size = 256 * (2**metatile_delta)
     tile_origin = tile_nw_corner(tile_x, tile_y, level)
     dest_pixel_size = tile_size_in_gmerc_meters(level) / tile_size
     maprecord = open_map_reference(map_reference)
     proj_transformer = pyproj.Transformer.from_crs(
-        crs_gmerc, maprecord.crs, always_xy=True)
+        crs_gmerc, maprecord.crs, always_xy=True
+    )
 
     def transform_dest_to_src_pixel(xxx_todo_changeme):
         (x, y) = xxx_todo_changeme
@@ -231,14 +257,15 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference):
     def transform_src_to_dest_pixel(x, y):
         x, y = maprecord.gcp_transformer.transform(x, y)
         x, y = proj_transformer.transform(
-            x, y, direction=pyproj.transformer.TransformDirection.INVERSE)
+            x, y, direction=pyproj.transformer.TransformDirection.INVERSE
+        )
         x = (x - tile_origin[0]) / dest_pixel_size
         y = (tile_origin[1] - y) / dest_pixel_size
         return x, y
 
     im_src = Image.open(maprecord.image_path)
-    src_has_alpha = im_src.mode.endswith('A')
-    im_src = im_src.convert('RGBA')
+    src_has_alpha = im_src.mode.endswith("A")
+    im_src = im_src.convert("RGBA")
     if maprecord.mask_path is not None:
         im_mask = Image.open(maprecord.mask_path)
         im_src.putalpha(im_mask)
@@ -256,13 +283,16 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference):
             quad = sum(quad, tuple())
             mesh.append(((x1, y1, x2, y2), quad))
     im = im_src.transform((tile_size, tile_size), Image.MESH, mesh, Image.BICUBIC)
-    cutline_mask = Image.new('L', (tile_size, tile_size))
+    cutline_mask = Image.new("L", (tile_size, tile_size))
     cutline = maprecord.projected_cutline
     cutline = reproject_cutline_gmerc(maprecord.crs, cutline)
-    cutline = [((x - tile_origin[0]) / dest_pixel_size, (tile_origin[1] - y) / dest_pixel_size) for x, y in cutline]
+    cutline = [
+        ((x - tile_origin[0]) / dest_pixel_size, (tile_origin[1] - y) / dest_pixel_size)
+        for x, y in cutline
+    ]
     draw = ImageDraw.Draw(cutline_mask)
     draw.polygon(cutline, fill=255, outline=255)
-    mask = Image.new('L', (tile_size, tile_size))
+    mask = Image.new("L", (tile_size, tile_size))
     mask.paste(cutline_mask, (0, 0), im)
     if not src_has_alpha:
         im.putalpha(mask)
@@ -270,9 +300,12 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference):
 
     mid_point_y = tile_origin[1] - tile_size_in_gmerc_meters(level) / 2
     mid_point_lat = pyproj.transform(
-        crs_gmerc, crs_gmerc.geodetic_crs, 0, mid_point_y, always_xy=True)[1]
+        crs_gmerc, crs_gmerc.geodetic_crs, 0, mid_point_y, always_xy=True
+    )[1]
     dest_meters_per_pixel = dest_pixel_size * math.cos(math.radians(mid_point_lat))
-    im = apply_attribution(im, maprecord, transform_src_to_dest_pixel, dest_meters_per_pixel)
+    im = apply_attribution(
+        im, maprecord, transform_src_to_dest_pixel, dest_meters_per_pixel
+    )
     return im
 
 
@@ -282,13 +315,15 @@ def slice_metatile(im, metatile_x, metatile_y, dest_level):
     assert im.size == (256 * (meta_q),) * 2
     tile_x0 = metatile_x * meta_q
     tile_y0 = metatile_y * meta_q
-    max_tile = 2 ** dest_level
+    max_tile = 2**dest_level
     for d_tile_y in range(meta_q):
         y0 = d_tile_y * 256
         for d_tile_x in range(meta_q):
             x0 = d_tile_x * 256
-            im2 = im.crop([x0, y0, x0+256, y0+256])
-            tile_store.write(im2, (tile_x0 + d_tile_x) % max_tile, tile_y0 + d_tile_y, dest_level)
+            im2 = im.crop([x0, y0, x0 + 256, y0 + 256])
+            tile_store.write(
+                im2, (tile_x0 + d_tile_x) % max_tile, tile_y0 + d_tile_y, dest_level
+            )
 
 
 def process_metatile(xxx_todo_changeme1):
@@ -305,8 +340,8 @@ def process_metatile(xxx_todo_changeme1):
             im.paste(im2, (0, 0), im2)
     for level in range(config.max_level, metatile_level, -1):
         slice_metatile(im, tile_x, tile_y, level)
-        im = im.resize((im.size[0] // 2, )*2, Image.ANTIALIAS)
-    max_tile = 2 ** metatile_level
+        im = im.resize((im.size[0] // 2,) * 2, Image.ANTIALIAS)
+    max_tile = 2**metatile_level
     tile_store.write(im, tile_x % max_tile, tile_y, metatile_level)
 
 
@@ -343,26 +378,26 @@ def make_tiles_from_metalevel_to_maxlevel(tiles):
         imap_func = pool.imap_unordered
     for _ in imap_func(process_metatile, tiles):
         n += 1
-        print(('\r%.1f%%' % (n * 100. / len(tiles))), end=' ')
+        print(("\r%.1f%%" % (n * 100.0 / len(tiles))), end=" ")
         sys.stdout.flush()
     print()
 
 
 def build_overview(xxx_todo_changeme2):
     (x, y, z) = xxx_todo_changeme2
-    im = Image.new('RGBA', (512, 512))
+    im = Image.new("RGBA", (512, 512))
     im2 = tile_store.open(x * 2, y * 2, z + 1)
     if im2 is not None:
-        im.paste(im2.convert('RGBA'), (0, 0))
+        im.paste(im2.convert("RGBA"), (0, 0))
     im2 = tile_store.open(x * 2 + 1, y * 2, z + 1)
     if im2 is not None:
-        im.paste(im2.convert('RGBA'), (256, 0))
+        im.paste(im2.convert("RGBA"), (256, 0))
     im2 = tile_store.open(x * 2, y * 2 + 1, z + 1)
     if im2 is not None:
-        im.paste(im2.convert('RGBA'), (0, 256))
+        im.paste(im2.convert("RGBA"), (0, 256))
     im2 = tile_store.open(x * 2 + 1, y * 2 + 1, z + 1)
     if im2 is not None:
-        im.paste(im2.convert('RGBA'), (256, 256))
+        im.paste(im2.convert("RGBA"), (256, 256))
     im = im.resize((256, 256), Image.ANTIALIAS)
     # FIXME: добавить закрашивание для уровней, которые делаются из metatile
     if config.highlight_level is not None and z <= config.highlight_level:
@@ -385,7 +420,7 @@ def build_overviews(altered_tiles):
     n = 0
     for _ in imap_func(build_overview, need_update):
         n += 1
-        print('\r%.1f%%' % (n * 100. / len(need_update)), end=' ')
+        print("\r%.1f%%" % (n * 100.0 / len(need_update)), end=" ")
         sys.stdout.flush()
     print()
     if need_update:
@@ -393,23 +428,23 @@ def build_overviews(altered_tiles):
 
 
 def parse_image_format(s):
-    fields = s.split(',')
+    fields = s.split(",")
     fmt = fields[0].upper()
     params = fields[1:]
-    params = (p.split('=', 1) for p in params)
+    params = (p.split("=", 1) for p in params)
     params = dict((k, int(v)) for k, v in params)
-    if fields[0] == 'PNG8':
-        if not (2 <= params.get('colors', None) <= 256):
+    if fields[0] == "PNG8":
+        if not (2 <= params.get("colors", None) <= 256):
             raise ValueError
-        if not (1 <= params.get('speed', None) <= 10):
+        if not (1 <= params.get("speed", None) <= 10):
             raise ValueError
-        if not (1 <= params.get('compression', 6) <= 9):
+        if not (1 <= params.get("compression", 6) <= 9):
             raise ValueError
-    elif fields[0] == 'PNG32':
-        if not (1 <= params.get('compression', 6) <= 9):
+    elif fields[0] == "PNG32":
+        if not (1 <= params.get("compression", 6) <= 9):
             raise ValueError
-    elif fields[0] == 'JPEG':
-        if not (1 <= params.get('quality', None) <= 100):
+    elif fields[0] == "JPEG":
+        if not (1 <= params.get("quality", None) <= 100):
             raise ValueError
     else:
         raise ValueError('Unsupported image format "%s"' % fields[0])
@@ -419,10 +454,10 @@ def parse_image_format(s):
 class MyArgumentParser(argparse.ArgumentParser):
     def convert_arg_line_to_args(self, arg_line):
         arg_line = arg_line.strip()
-        if arg_line and arg_line[0] == '#':
+        if arg_line and arg_line[0] == "#":
             return []
-        if '=' in arg_line and not arg_line.startswith('-'):
-            arg_line = '--' + arg_line
+        if "=" in arg_line and not arg_line.startswith("-"):
+            arg_line = "--" + arg_line
         if arg_line:
             return [arg_line]
         else:
@@ -433,35 +468,48 @@ def parse_command_line():
     # TODO: сделать возможны включение файлов при вызове не из текущей директории
     # TODO: по умолчанию включать файл tiles.cfg из текущего каталога
     # TODO: добавить описание форматов изображений
-    parser = MyArgumentParser(fromfile_prefix_chars='@')
-    parser.add_argument('--storage-format', choices=['files', 'mbtiles'], required=True)
-    parser.add_argument('--max-level', type=int, required=True)
-    parser.add_argument('--highlight-level', type=int)
-    parser.add_argument('maps', metavar='FILE', type=str, nargs='+')
-    parser.add_argument('--image-format', type=parse_image_format, required=True)
-    parser.add_argument('--image-border-format', type=parse_image_format)
-    parser.add_argument('--out', metavar='PATH', dest='out_path', required=True,
-                        help='Filename of mbtiles container or tiles dir')
-    parser.add_argument('-f', dest='do_update', action='store_true', help='actualy do update')
+    parser = MyArgumentParser(fromfile_prefix_chars="@")
+    parser.add_argument("--storage-format", choices=["files", "mbtiles"], required=True)
+    parser.add_argument("--max-level", type=int, required=True)
+    parser.add_argument("--highlight-level", type=int)
+    parser.add_argument("maps", metavar="FILE", type=str, nargs="+")
+    parser.add_argument("--image-format", type=parse_image_format, required=True)
+    parser.add_argument("--image-border-format", type=parse_image_format)
+    parser.add_argument(
+        "--out",
+        metavar="PATH",
+        dest="out_path",
+        required=True,
+        help="Filename of mbtiles container or tiles dir",
+    )
+    parser.add_argument(
+        "-f", dest="do_update", action="store_true", help="actualy do update"
+    )
     return parser.parse_args()
 
 
 def print_job_info(job):
-    print('Maps added: %s' % job.get_added_maps_n())
-    print('Maps removed: %s' % job.get_removed_maps_n())
-    print('Metatiles to rebuild: %s' % len(job.get_tiles_needing_update()))
+    print("Maps added: %s" % job.get_added_maps_n())
+    print("Maps removed: %s" % job.get_removed_maps_n())
+    print("Metatiles to rebuild: %s" % len(job.get_tiles_needing_update()))
 
 
 def configure_output_storage():
     global tile_store
-    image_encoder = image_store.get_image_encoder(config.image_format, config.image_border_format)
-    tile_store_class = {'files': image_store.FilesWriter, 'mbtiles': image_store.MBTilesWriter}[config.storage_format]
+    image_encoder = image_store.get_image_encoder(
+        config.image_format, config.image_border_format
+    )
+    tile_store_class = {
+        "files": image_store.FilesWriter,
+        "mbtiles": image_store.MBTilesWriter,
+    }[config.storage_format]
     tile_store = tile_store_class(config.out_path, image_encoder)
 
 
 def main():
-    warnings.filterwarnings(action='ignore', category=FutureWarning,
-                            message=r"'.*\+init=")
+    warnings.filterwarnings(
+        action="ignore", category=FutureWarning, message=r"'.*\+init="
+    )
     global config
     config = parse_command_line()
     config.metatile_level = max(config.max_level - METATILE_DELTA, 0)
@@ -472,17 +520,24 @@ def main():
         t = time.time()
         remove_tiles(job.get_removed_tiles())
         make_tiles_from_metalevel_to_maxlevel(job.get_tiles_needing_update())
-        print('Building overviews')
-        overview_tiles_needing_update = (tile for (tile, _) in job.get_tiles_needing_update())
-        overview_tiles_needing_update = chain(overview_tiles_needing_update, job.get_removed_tiles())
-        overview_tiles_needing_update = ((x % (2**z), y, z) for (x, y, z) in overview_tiles_needing_update)
+        print("Building overviews")
+        overview_tiles_needing_update = (
+            tile for (tile, _) in job.get_tiles_needing_update()
+        )
+        overview_tiles_needing_update = chain(
+            overview_tiles_needing_update, job.get_removed_tiles()
+        )
+        overview_tiles_needing_update = (
+            (x % (2**z), y, z) for (x, y, z) in overview_tiles_needing_update
+        )
         build_overviews(overview_tiles_needing_update)
         job.apply_update()
-        print('Done in %.1f seconds' % (time.time() - t))
+        print("Done in %.1f seconds" % (time.time() - t))
     else:
         print('To actualy update mbtiles db, specify "-f" option')
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     try:
         main()
     except UserInputError as e:

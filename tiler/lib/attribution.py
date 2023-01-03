@@ -1,22 +1,22 @@
-
 # coding: utf-8
 import math
 
-from PIL import Image
 import cairo
 import gi
-gi.require_version('PangoCairo', '1.0')
-gi.require_version('Pango', '1.0')
+from PIL import Image
+
+gi.require_version("PangoCairo", "1.0")
+gi.require_version("Pango", "1.0")
 from gi.repository import Pango, PangoCairo
 
 
-
 # FONTNAME = 'Droid Sans'
-FONTNAME = 'Noto Sans'
+FONTNAME = "Noto Sans"
 # FONTNAME = 'Sans'
 
 
 _font_installed = None
+
 
 def check_font_installed():
     global _font_installed
@@ -33,7 +33,7 @@ def check_font_installed():
 
 def create_path(ctx, text, font_size_px, rotate):
     check_font_installed()
-    ctx.set_line_width(font_size_px / 5.)
+    ctx.set_line_width(font_size_px / 5.0)
     ctx.set_line_join(cairo.LINE_JOIN_ROUND)
     ctx.save()
 
@@ -69,43 +69,51 @@ def draw(text, font_size_px, rotate):
     ctx.stroke_preserve()
     ctx.set_source_rgb(255, 255, 255)
     ctx.fill_preserve()
-    im = Image.frombuffer("RGBA", (width, height), surface.get_data().tobytes(), "raw", "BGRA", 0, 1)
-    return {'image': im, 'x_offset': x_offset, 'y_offset': y_offset}
+    im = Image.frombuffer(
+        "RGBA", (width, height), surface.get_data().tobytes(), "raw", "BGRA", 0, 1
+    )
+    return {"image": im, "x_offset": x_offset, "y_offset": y_offset}
 
 
 def make_attribution_text(image_info):
     text = []
-    date = image_info.get('date')
+    date = image_info.get("date")
     if date:
-        text.append(image_info['date'].split('-')[0])
-    scale = image_info.get('scale')
+        text.append(image_info["date"].split("-")[0])
+    scale = image_info.get("scale")
     if scale:
-        s = '1:{:,}'.format(int(image_info['scale'])).replace(',', ' ')
-        h = image_info.get('h')
+        s = "1:{:,}".format(int(image_info["scale"])).replace(",", " ")
+        h = image_info.get("h")
         if h:
-            s += '  h=%s м' % image_info['h']
+            s += "  h=%s м" % image_info["h"]
         text.append(s)
-    event = image_info.get('event')
+    event = image_info.get("event")
     if event:
         text.append(event)
-    text = '\n'.join(text)
+    text = "\n".join(text)
     return text
 
 
 src_font_size_mm = 3
 
 
-def make_attribution_image(attrib_data, image_info, src_pixel_to_dest_pixel_transformer, dest_meters_in_pixel):
+def make_attribution_image(
+    attrib_data, image_info, src_pixel_to_dest_pixel_transformer, dest_meters_in_pixel
+):
     text = make_attribution_text(image_info)
-    font_size_ground_meters = float(src_font_size_mm) * attrib_data['scale_denom'] / 1000
+    font_size_ground_meters = (
+        float(src_font_size_mm) * attrib_data["scale_denom"] / 1000
+    )
     dest_font_size = font_size_ground_meters / dest_meters_in_pixel
 
-    xy_src_1 = attrib_data['anchor']
-    xy_src_2 = {'x': xy_src_1['x'] + math.cos(attrib_data['angle']) * 100,
-                'y': xy_src_1['y'] + math.sin(attrib_data['angle']) * 100}
+    xy_src_1 = attrib_data["anchor"]
+    xy_src_2 = {
+        "x": xy_src_1["x"] + math.cos(attrib_data["angle"]) * 100,
+        "y": xy_src_1["y"] + math.sin(attrib_data["angle"]) * 100,
+    }
 
-    xy_dest_1 = src_pixel_to_dest_pixel_transformer(xy_src_1['x'], xy_src_1['y'])
-    xy_dest_2 = src_pixel_to_dest_pixel_transformer(xy_src_2['x'], xy_src_2['y'])
+    xy_dest_1 = src_pixel_to_dest_pixel_transformer(xy_src_1["x"], xy_src_1["y"])
+    xy_dest_2 = src_pixel_to_dest_pixel_transformer(xy_src_2["x"], xy_src_2["y"])
 
     dest_angle = math.atan2(xy_dest_2[1] - xy_dest_1[1], xy_dest_2[0] - xy_dest_1[0])
     # print 'image angle', math.degrees(attrib_data['angle']), 'proj anfle', math.degrees(dest_angle)
@@ -114,7 +122,9 @@ def make_attribution_image(attrib_data, image_info, src_pixel_to_dest_pixel_tran
 
 def get_text_size(attrib_data, image_info, dest_meters_in_pixel):
     text = make_attribution_text(image_info)
-    font_size_ground_meters = float(src_font_size_mm) * attrib_data['scale_denom'] / 1000
+    font_size_ground_meters = (
+        float(src_font_size_mm) * attrib_data["scale_denom"] / 1000
+    )
     font_size_px = font_size_ground_meters / dest_meters_in_pixel
     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, 500, 500)
     ctx = cairo.Context(surface)
@@ -126,22 +136,24 @@ def get_text_size(attrib_data, image_info, dest_meters_in_pixel):
     return width, height
 
 
-
 def get_attrib_path(image_path):
-    return image_path + '.attrib.json'
+    return image_path + ".attrib.json"
 
 
 def get_info_path(image_path):
-    return image_path + '.info.json'
+    return image_path + ".info.json"
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # im = draw('1:25 000 Жаркий июль', 1, 0 )
     # print im.size
     # im.show()
-    info = {'scale': '25000', 'h': 10, 'date': '2014-1-2'}
+    info = {"scale": "25000", "h": 10, "date": "2014-1-2"}
     transformer = lambda x, y: (x, y)
-    data = ({'anchor': {'x': 542, 'y': 333},
-             'scale_denom': 7500, 'angle': .0,})
+    data = {
+        "anchor": {"x": 542, "y": 333},
+        "scale_denom": 7500,
+        "angle": 0.0,
+    }
 
     make_attribution_image(data, info, transformer, 1).show()
