@@ -12,6 +12,7 @@ import warnings
 from itertools import chain
 from multiprocessing import Pool, cpu_count
 from functools import cache
+from pathlib import Path
 
 import pyproj
 from PIL import Image, ImageChops, ImageDraw, ImageFile, ImageFilter
@@ -154,9 +155,9 @@ class JobManager(object):
         attrib_filename = attribution.get_attrib_path(maprecord.image_path)
         if os.path.exists(attrib_filename):
             fingerprint = hashlib.sha1(fingerprint.encode())
-            fingerprint.update(b":~:" + open(attrib_filename, "rb").read())
+            fingerprint.update(b":~:" + Path(attrib_filename).read_bytes())
             info_filename = attribution.get_info_path(maprecord.image_path)
-            fingerprint.update(b":~:" + open(info_filename, "rb").read())
+            fingerprint.update(b":~:" + Path(info_filename).read_bytes())
             fingerprint = fingerprint.hexdigest()
         return fingerprint
 
@@ -217,8 +218,10 @@ def apply_attribution(im, maprecord, src_to_dest_transformer, dest_meters_in_pix
     attrib_filename = attribution.get_attrib_path(maprecord.image_path)
     if not os.path.exists(attrib_filename):
         return im
-    attrib_data = json.load(open(attrib_filename))
-    image_info = json.load(open(attribution.get_info_path(maprecord.image_path)))
+    attrib_data = json.loads(Path(attrib_filename).read_bytes())
+    image_info = json.loads(
+        Path(attribution.get_info_path(maprecord.image_path)).read_bytes()
+    )
     attr_im_info = attribution.make_attribution_image(
         attrib_data, image_info, src_to_dest_transformer, dest_meters_in_pixel
     )
