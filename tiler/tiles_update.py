@@ -11,6 +11,7 @@ import time
 import warnings
 from itertools import chain
 from multiprocessing import Pool, cpu_count
+from functools import cache
 
 import pyproj
 from PIL import Image, ImageChops, ImageDraw, ImageFile, ImageFilter
@@ -103,23 +104,20 @@ def calc_area(points):
     return abs(area)
 
 
+@cache
+def make_proj_transformer(from_crs, to_crs):
+    return pyproj.Transformer.from_crs(from_crs, to_crs, always_xy=True)
+
+
 def reproject_cutline_gmerc(src_crs, points):
     if points:
         points = densify_linestring(points)
-        points1 = list(
-            zip(
-                *pyproj.transform(
-                    src_crs, crs_gmerc, *list(zip(*points)), always_xy=True
-                )
-            )
-        )
-        points2 = list(
-            zip(
-                *pyproj.transform(
-                    src_crs, crs_gmerc_180, *list(zip(*points)), always_xy=True
-                )
-            )
-        )
+
+        transformer = make_proj_transformer(src_crs, crs_gmerc)
+        points1 = list(zip(*transformer.transform(*list(zip(*points)))))
+        transformer = make_proj_transformer(src_crs, crs_gmerc_180)
+        points2 = list(zip(*transformer.transform(*list(zip(*points)))))
+
         return points1 if calc_area(points1) <= calc_area(points2) else points2
     return []
 
