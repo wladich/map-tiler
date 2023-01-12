@@ -325,7 +325,9 @@ def slice_metatile(im, metatile_x, metatile_y, dest_level):
 def render_tile(tile_x, tile_y, tile_level, map_references, tile_size):
     im = None
     for map_reference in map_references:
-        im2 = get_reprojected_image(tile_x, tile_y, tile_level, map_reference, tile_size)
+        im2 = get_reprojected_image(
+            tile_x, tile_y, tile_level, map_reference, tile_size
+        )
         if im is None:
             im = im2
         else:
