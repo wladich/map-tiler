@@ -470,7 +470,7 @@ class MyArgumentParser(argparse.ArgumentParser):
             return []
 
 
-def parse_command_line():
+def parse_command_line(argv=None):
     # TODO: сделать возможны включение файлов при вызове не из текущей директории
     # TODO: по умолчанию включать файл tiles.cfg из текущего каталога
     # TODO: добавить описание форматов изображений
@@ -491,7 +491,7 @@ def parse_command_line():
     parser.add_argument(
         "-f", dest="do_update", action="store_true", help="actualy do update"
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def print_job_info(job):
@@ -512,10 +512,10 @@ def configure_output_storage():
     tile_store = tile_store_class(config.out_path, image_encoder)
 
 
-def main():
+def main(argv=None):
     warnings.filterwarnings(action="ignore", category=FutureWarning)
     global config
-    config = parse_command_line()
+    config = parse_command_line(argv)
     config.metatile_level = max(config.max_level - METATILE_DELTA, 0)
     configure_output_storage()
     prev_state = tile_store.read_metadata(PREV_STATE_FILENAME)
