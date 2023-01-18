@@ -202,7 +202,7 @@ class JobManager(object):
         for tile, fingerprints in list(self.new_maps_fingerprints_for_tiles.items()):
             s.append("%s,%s,%s,%s\n" % (tile + ("-".join(fingerprints),)))
         s = "".join(s)
-        tile_store.write_metadata(self.prev_state_filename, s)
+        tile_store.write_metadata(PREV_STATE_FILENAME, s)
 
     def _load_state(self, state_data):
         for line in state_data.splitlines():
