@@ -52,11 +52,15 @@ def create_path(ctx, text, font_size_px, rotate):
 
 
 def draw(text, font_size_px, rotate):
-    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, 500, 500)
+    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, 1000, 1000)
     ctx = cairo.Context(surface)
+    ctx.move_to(0, 500)
     create_path(ctx, text, font_size_px, rotate)
     x1, y1, x2, y2 = ctx.stroke_extents()
+    y1 -= 500
+    y2 -= 500
     x_offset, y_offset = ctx.fill_extents()[:2]
+    y_offset -= 500
 
     width = int(math.ceil(x2 - x1))
     height = int(math.ceil(y2 - y1))
