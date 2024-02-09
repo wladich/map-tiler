@@ -346,7 +346,7 @@ def process_metatile(xxx_todo_changeme1):
     im = render_tile(tile_x, tile_y, metatile_level, map_references, tile_size)
     for level in range(config.max_level, metatile_level, -1):
         slice_metatile(im, tile_x, tile_y, level)
-        im = im.resize((im.size[0] // 2,) * 2, Image.ANTIALIAS)
+        im = im.resize((im.size[0] // 2,) * 2, Image.Resampling.LANCZOS)
     max_tile = 2**metatile_level
     tile_store.write(im, tile_x % max_tile, tile_y, metatile_level)
 
@@ -404,7 +404,7 @@ def build_overview(xxx_todo_changeme2):
     im2 = tile_store.open(x * 2 + 1, y * 2 + 1, z + 1)
     if im2 is not None:
         im.paste(im2.convert("RGBA"), (256, 256))
-    im = im.resize((256, 256), Image.ANTIALIAS)
+    im = im.resize((256, 256), Image.Resampling.LANCZOS)
     # FIXME: добавить закрашивание для уровней, которые делаются из metatile
     if config.highlight_level is not None and z <= config.highlight_level:
         mask = im.split()[-1]
