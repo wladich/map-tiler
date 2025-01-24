@@ -145,7 +145,7 @@ class JobManager(object):
             maprecord = open_map_reference(map_reference)
             fingerprint = self.get_map_fingerprint(maprecord)
             tiles = self._get_tiles_for_maprecord(maprecord)
-            for (x, y, z) in tiles:
+            for x, y, z in tiles:
                 self.new_maps_fingerprints_for_tiles[(x, y, z)].append(fingerprint)
                 self.maps_references_for_tiles[(x, y, z)].append(map_reference)
                 self.new_maps_fingerprints.add(fingerprint)
@@ -481,6 +481,7 @@ def parse_command_line(argv=None):
     parser.add_argument("maps", metavar="FILE", type=str, nargs="+")
     parser.add_argument("--image-format", type=parse_image_format, required=True)
     parser.add_argument("--image-border-format", type=parse_image_format)
+    parser.add_argument("--base-dir", help="Base directory for map files")
     parser.add_argument(
         "--out",
         metavar="PATH",
@@ -519,7 +520,10 @@ def main(argv=None):
     config.metatile_level = max(config.max_level - METATILE_DELTA, 0)
     configure_output_storage()
     prev_state = tile_store.read_metadata(PREV_STATE_FILENAME)
-    job = JobManager(config.maps, config.metatile_level, prev_state)
+    maps = config.maps
+    if basedir := config.base_dir:
+        maps = [os.path.join(basedir, path) for path in maps]
+    job = JobManager(maps, config.metatile_level, prev_state)
     print_job_info(job)
     if config.do_update:
         t = time.time()
