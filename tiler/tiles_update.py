@@ -28,7 +28,7 @@ Image.MAX_IMAGE_PIXELS = None
 
 
 DEBUG = False
-crs_gmerc = pyproj.CRS("+init=epsg:3857")
+crs_gmerc = pyproj.CRS("EPSG:3857")
 
 crs_gmerc_180_dict = crs_gmerc.to_json_dict()
 lon_patched = False
