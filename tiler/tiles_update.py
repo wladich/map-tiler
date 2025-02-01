@@ -9,9 +9,9 @@ import os
 import sys
 import time
 import warnings
+from functools import cache
 from itertools import chain
 from multiprocessing import Pool, cpu_count
-from functools import cache
 from pathlib import Path
 
 import pyproj
@@ -19,8 +19,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageFile, ImageFilter
 from maprec import Maprecord, densify_linestring
 from ozi_map import ozi_to_maprec
 
-from . import image_store
-from . import attribution
+from . import attribution, image_store
 
 PREV_STATE_FILENAME = "tiles_sources"
 ImageFile.LOAD_TRUNCATED_IMAGES = True
