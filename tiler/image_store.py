@@ -47,9 +47,9 @@ class MBTilesWriter(object):
         self.encoder = image_encoder
         self.path = path
         if need_init:
-            self.conn.executescript(self.SCHEME)
+            with db_lock, self.conn() as conn:
+                conn.executescript(self.SCHEME)
 
-    @property
     def conn(self):
         conn = sqlite.connect(self.path)
         conn.executescript(self.PRAGMAS)
@@ -65,58 +65,51 @@ class MBTilesWriter(object):
             tile_y = 2**level - tile_y - 1
             s = BytesIO()
             encoder.send(s)
-            with db_lock:
-                conn = self.conn
+            with db_lock, self.conn() as conn:
                 conn.execute(
                     """
                     INSERT INTO tiles (zoom_level, tile_column, tile_row, tile_data) VALUES (?,?,?,?)""",
                     (level, tile_x, tile_y, s.getvalue()),
                 )
-                conn.commit()
-                conn.close()
         else:
             self.remove(tile_x, tile_y, level)
 
     def remove(self, tile_x, tile_y, level):
-        conn = self.conn
         tile_y = 2**level - tile_y - 1
-        conn.execute(
-            "DELETE FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=?",
-            (level, tile_x, tile_y),
-        )
-        conn.commit()
-        conn.close()
+        with db_lock, self.conn() as conn:
+            conn.execute(
+                "DELETE FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=?",
+                (level, tile_x, tile_y),
+            )
 
     def open(self, tile_x, tile_y, level):
         tile_y = 2**level - tile_y - 1
-        conn = self.conn
-        row = self.conn.execute(
-            "SELECT tile_data FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=?",
-            (level, tile_x, tile_y),
-        ).fetchone()
+        with db_lock, self.conn() as conn:
+            row = conn.execute(
+                "SELECT tile_data FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=?",
+                (level, tile_x, tile_y),
+            ).fetchone()
         if row:
             return open_image(row[0])
-        conn.close()
 
     def write_metadata(self, key, value):
-        conn = self.conn
-        conn.execute("INSERT INTO metadata (name, value) VALUES (?, ?)", (key, value))
-        conn.commit()
-        conn.close()
+        with db_lock, self.conn() as conn:
+            conn.execute(
+                "INSERT INTO metadata (name, value) VALUES (?, ?)", (key, value)
+            )
 
     def read_metadata(self, key):
-        conn = self.conn
-        row = conn.execute("SELECT value FROM metadata WHERE name=?", (key,)).fetchone()
+        with db_lock, self.conn() as conn:
+            row = conn.execute(
+                "SELECT value FROM metadata WHERE name=?", (key,)
+            ).fetchone()
         if row:
             return row[0]
-        conn.close()
 
     def close(self):
         #        self.conn.commit()
-        conn = self.conn
-        conn.execute("PRAGMA journal_mode = off")
-
-    #        self.conn.close()
+        with db_lock, self.conn() as conn:
+            conn.execute("PRAGMA journal_mode = off")
 
     def __del__(self):
         self.close()
