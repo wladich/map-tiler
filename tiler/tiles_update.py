@@ -29,21 +29,21 @@ Image.MAX_IMAGE_PIXELS = None
 DEBUG = False
 crs_gmerc = pyproj.CRS("EPSG:3857")
 
-crs_gmerc_180_dict = crs_gmerc.to_json_dict()
-lon_patched = False
-easting_patched = False
-for rec in crs_gmerc_180_dict["conversion"]["parameters"]:
-    if rec["name"] == "Longitude of natural origin":
-        rec["value"] = 180
-        lon_patched = True
+def get_crs_gmerc_180(target_eastern_hemisphere=True):
+    crs_gmerc_180_dict = crs_gmerc.to_json_dict()
+    shift_sign = 1 if target_eastern_hemisphere else -1
+    lon_patched = False
+    easting_patched = False
+    for rec in crs_gmerc_180_dict["conversion"]["parameters"]:
+        if rec["name"] == "Longitude of natural origin":
+            rec["value"] = 180
+            lon_patched = True
 
-    if rec["name"] == "False easting":
-        rec["value"] = 20037508.342789244
-        easting_patched = True
-assert lon_patched and easting_patched
-
-
-crs_gmerc_180 = pyproj.CRS.from_user_input(crs_gmerc_180_dict)
+        if rec["name"] == "False easting":
+            rec["value"] = 20037508.342789244 * shift_sign
+            easting_patched = True
+    assert lon_patched and easting_patched
+    return pyproj.CRS.from_user_input(crs_gmerc_180_dict)
 
 
 max_gmerc_coord = 20037508.342789244
@@ -109,13 +109,13 @@ def make_proj_transformer(from_crs, to_crs):
     return pyproj.Transformer.from_crs(from_crs, to_crs, always_xy=True)
 
 
-def reproject_cutline_gmerc(src_crs, points):
+def reproject_cutline_gmerc(src_crs, points, target_eastern_hemisphere=True):
     if points:
         points = densify_linestring(points)
 
         transformer = make_proj_transformer(src_crs, crs_gmerc)
         points1 = list(zip(*transformer.transform(*list(zip(*points)))))
-        transformer = make_proj_transformer(src_crs, crs_gmerc_180)
+        transformer = make_proj_transformer(src_crs, get_crs_gmerc_180(target_eastern_hemisphere))
         points2 = list(zip(*transformer.transform(*list(zip(*points)))))
 
         return points1 if calc_area(points1) <= calc_area(points2) else points2
@@ -282,7 +282,10 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference, tile_size):
     im = im_src.transform((tile_size, tile_size), Image.MESH, mesh, Image.BICUBIC)
     cutline_mask = Image.new("L", (tile_size, tile_size))
     cutline = maprecord.projected_cutline
-    cutline = reproject_cutline_gmerc(maprecord.crs, cutline)
+    # FIXME: apply cutline to source image
+    cutline = reproject_cutline_gmerc(
+        maprecord.crs, cutline, target_eastern_hemisphere=(tile_x >= 2 ** (level - 1))
+    )
     cutline = [
         ((x - tile_origin[0]) / dest_pixel_size, (tile_origin[1] - y) / dest_pixel_size)
         for x, y in cutline
