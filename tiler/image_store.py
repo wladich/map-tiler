@@ -27,6 +27,22 @@ def open_image(s):
         return Image.open(BytesIO(s))
 
 
+def validate_tile_index(tile_x, tile_y, level):
+    assert isinstance(tile_x, int)
+    assert isinstance(tile_y, int)
+    assert isinstance(level, int)
+    if level < 0:
+        raise ValueError(f"Negative value of level: {tile_x=} {tile_y=} {level=}")
+    err = []
+    max_coord = 2**level - 1
+    if tile_x > max_coord or tile_x < 0:
+        err = [f"Invalid value of tile_x: {tile_x=} {tile_y=} {level=}"]
+    if tile_y > max_coord or tile_y < 0:
+        err.append(f"Invalid value of tile_y: {tile_x=} {tile_y=} {level=}")
+    if err:
+        raise ValueError(";".join(err))
+
+
 class MBTilesWriter(object):
     SCHEME = """
         CREATE TABLE tiles(
@@ -56,9 +72,7 @@ class MBTilesWriter(object):
         return conn
 
     def write(self, im, tile_x, tile_y, level):
-        assert isinstance(tile_x, int)
-        assert isinstance(tile_y, int)
-        assert isinstance(level, int)
+        validate_tile_index(tile_x, tile_y, level)
         encoder = self.encoder(im)
         image_not_empty = next(encoder)
         if image_not_empty:
@@ -75,6 +89,7 @@ class MBTilesWriter(object):
             self.remove(tile_x, tile_y, level)
 
     def remove(self, tile_x, tile_y, level):
+        validate_tile_index(tile_x, tile_y, level)
         tile_y = 2**level - tile_y - 1
         with db_lock, self.conn() as conn:
             conn.execute(
@@ -83,6 +98,7 @@ class MBTilesWriter(object):
             )
 
     def open(self, tile_x, tile_y, level):
+        validate_tile_index(tile_x, tile_y, level)
         tile_y = 2**level - tile_y - 1
         with db_lock, self.conn() as conn:
             row = conn.execute(
@@ -128,9 +144,7 @@ class FilesWriter(object):
         return filename
 
     def write(self, im, tile_x, tile_y, level):
-        assert isinstance(tile_x, int)
-        assert isinstance(tile_y, int)
-        assert isinstance(level, int)
+        validate_tile_index(tile_x, tile_y, level)
         encoder = self.encoder(im)
         image_not_empty = next(encoder)
         if image_not_empty:
@@ -141,11 +155,13 @@ class FilesWriter(object):
             self.remove(tile_x, tile_y, level)
 
     def remove(self, tile_x, tile_y, level):
+        validate_tile_index(tile_x, tile_y, level)
         filename = self._get_tile_file_name(tile_x, tile_y, level)
         if os.path.exists(filename):
             os.remove(filename)
 
     def open(self, tile_x, tile_y, level):
+        validate_tile_index(tile_x, tile_y, level)
         filename = self._get_tile_file_name(tile_x, tile_y, level)
         if os.path.exists(filename):
             with open(filename) as f:

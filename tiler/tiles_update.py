@@ -166,8 +166,9 @@ class JobManager(object):
         x, y = list(zip(*cutline))
         tx1, ty2 = tile_from_gmerc_meters(min(x), min(y), self.tile_zoom)
         tx2, ty1 = tile_from_gmerc_meters(max(x), max(y), self.tile_zoom)
+        max_x = 2**self.tile_zoom
         return [
-            (x_, y_, self.tile_zoom)
+            (x_ % max_x, y_, self.tile_zoom)
             for x_ in range(tx1, tx2 + 1)
             for y_ in range(ty1, ty2 + 1)
         ]
@@ -317,9 +318,7 @@ def slice_metatile(im, metatile_x, metatile_y, dest_level):
         for d_tile_x in range(meta_q):
             x0 = d_tile_x * 256
             im2 = im.crop([x0, y0, x0 + 256, y0 + 256])
-            tile_store.write(
-                im2, (tile_x0 + d_tile_x) % max_tile, tile_y0 + d_tile_y, dest_level
-            )
+            tile_store.write(im2, tile_x0 + d_tile_x, tile_y0 + d_tile_y, dest_level)
 
 
 def render_tile(tile_x, tile_y, tile_level, map_references, tile_size):
