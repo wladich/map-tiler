@@ -359,8 +359,8 @@ def remove_tiles(metatiles):
         tx, ty, level = tile
         while level > 0:
             level -= 1
-            tx /= 2
-            ty /= 2
+            tx //= 2
+            ty //= 2
             tiles_overviews.add((tx, ty, level))
         tx, ty, level = tile
         w = 1
