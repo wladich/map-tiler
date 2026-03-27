@@ -279,7 +279,7 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference, tile_size):
             quad = list(map(transform_dest_to_src_pixel, quad))
             quad = sum(quad, tuple())
             mesh.append(((x1, y1, x2, y2), quad))
-    im = im_src.transform((tile_size, tile_size), Image.MESH, mesh, Image.BICUBIC)
+    im = im_src.transform((tile_size, tile_size), Image.Transform.MESH, mesh, Image.Resampling.BICUBIC)
     cutline_mask = Image.new("L", (tile_size, tile_size))
     cutline = maprecord.projected_cutline
     # FIXME: apply cutline to source image
