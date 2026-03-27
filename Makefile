@@ -3,33 +3,25 @@ Available targets:
 	help
 	black
 	check
-	venv [path=PATH_TO_VENV]
-		create venv for development
-		default path=./venv
-	clean
-
-	common arguments:
-		python=PYTHON3_EXECUTABLE, defaults to python3
+	venv - create or update venv for development
+	clean - clean caches
 endef
 export help
 
-path?=./venv
-python?=python3
+TOOL_PREFIX=./.venv/bin/
 
 help:
 	@echo "$$help"
 
 black:
-	black --diff --check -q .
+	$(TOOL_PREFIX)black --diff --check -q .
 
 check: black
 	@echo All checks passed.
 
 .PHONY: venv
 venv:
-	@echo Will install at $(path)
-	$(python) -m venv $(path)
-	SETUPTOOLS_ENABLE_FEATURES="legacy-editable" $(path)/bin/pip install -e ".[test]"
+	uv sync
 
 clean:
-	rm -rf ./mypy_cache ./*.egg-info ./.mypy_cache ./__pycache__ ./.pytest_cache ./venv ./build
+	rm -r ./.venv ./__pycache__

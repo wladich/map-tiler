@@ -1,3 +1,37 @@
+[project]
+name = "tiler"
+version = "0.0.2"
+requires-python = "==3.11.*"
+dependencies = [
+    "pyyaml==6.0.1",
+    "pyproj==3.4.1",
+    "pypng==0.20220715.0",
+    "Pillow==10.2.0",
+    "pycairo==1.25.1",
+    "tps",
+    "maprec",
+    "ozi_map",
+    "imagequant",
+    "PyGObject==3.46.0",
+]
+
+[tool.uv.sources]
+tps = { git = "https://github.com/wladich/thinplatespline.git" }
+maprec = { git = "https://github.com/wladich/maprec.git" }
+ozi_map = { git = "https://github.com/wladich/ozi_map.git" }
+imagequant = { git = "https://github.com/wladich/pyimagequant.git" }
+
+[project.scripts]
+tiler = "tiler.tiles_update:main"
+
+[dependency-groups]
+dev = [
+    "black==24.1.1",
+]
+
 [build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.9.21,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
