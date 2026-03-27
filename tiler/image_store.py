@@ -164,7 +164,7 @@ class FilesWriter(object):
         validate_tile_index(tile_x, tile_y, level)
         filename = self._get_tile_file_name(tile_x, tile_y, level)
         if os.path.exists(filename):
-            with open(filename, 'rb') as f:
+            with open(filename, "rb") as f:
                 return open_image(f.read())
 
     def _get_metadata_file_name(self, key):

@@ -29,6 +29,7 @@ Image.MAX_IMAGE_PIXELS = None
 DEBUG = False
 crs_gmerc = pyproj.CRS("EPSG:3857")
 
+
 def get_crs_gmerc_180(target_eastern_hemisphere=True):
     crs_gmerc_180_dict = crs_gmerc.to_json_dict()
     shift_sign = 1 if target_eastern_hemisphere else -1
@@ -115,7 +116,9 @@ def reproject_cutline_gmerc(src_crs, points, target_eastern_hemisphere=True):
 
         transformer = make_proj_transformer(src_crs, crs_gmerc)
         points1 = list(zip(*transformer.transform(*list(zip(*points)))))
-        transformer = make_proj_transformer(src_crs, get_crs_gmerc_180(target_eastern_hemisphere))
+        transformer = make_proj_transformer(
+            src_crs, get_crs_gmerc_180(target_eastern_hemisphere)
+        )
         points2 = list(zip(*transformer.transform(*list(zip(*points)))))
 
         return points1 if calc_area(points1) <= calc_area(points2) else points2
@@ -279,7 +282,9 @@ def get_reprojected_image(tile_x, tile_y, level, map_reference, tile_size):
             quad = list(map(transform_dest_to_src_pixel, quad))
             quad = sum(quad, tuple())
             mesh.append(((x1, y1, x2, y2), quad))
-    im = im_src.transform((tile_size, tile_size), Image.Transform.MESH, mesh, Image.Resampling.BICUBIC)
+    im = im_src.transform(
+        (tile_size, tile_size), Image.Transform.MESH, mesh, Image.Resampling.BICUBIC
+    )
     cutline_mask = Image.new("L", (tile_size, tile_size))
     cutline = maprecord.projected_cutline
     # FIXME: apply cutline to source image
