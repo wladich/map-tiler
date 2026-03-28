@@ -23,5 +23,8 @@ check: black
 venv:
 	uv sync
 
+install:
+	uv tool install --python 3.11 .
+
 clean:
 	rm -r ./.venv ./__pycache__
